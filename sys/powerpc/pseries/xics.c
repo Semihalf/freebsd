@@ -154,9 +154,6 @@ xicp_mem_for_cpu(int cpu)
 static int
 xicp_probe(device_t dev)
 {
-	if (ofw_bus_get_name(dev) == NULL || strcmp(ofw_bus_get_name(dev),
-	    "interrupt-controller") != 0)
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "ibm,ppc-xicp"))
 		return (ENXIO);
@@ -168,9 +165,6 @@ xicp_probe(device_t dev)
 static int
 xics_probe(device_t dev)
 {
-	if (ofw_bus_get_name(dev) == NULL || strcmp(ofw_bus_get_name(dev),
-	    "interrupt-controller") != 0)
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "ibm,ppc-xics"))
 		return (ENXIO);
