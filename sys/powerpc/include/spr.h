@@ -192,6 +192,9 @@
 #define	  FSL_E5500		  0x8024
 #define	  FSL_E6500		  0x8040
 
+#define	SPR_LPCR		0x13e	/* Logical Partitioning Control */
+#define	  LPCR_LPES		0x008	/* Bit 60 */
+
 #define	SPR_EPCR		0x133
 #define	  EPCR_EXTGS		  0x80000000
 #define	  EPCR_DTLBGS		  0x40000000
