@@ -46,6 +46,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/ofw/ofw_bus.h>
 #include <dev/ofw/ofw_bus_subr.h>
 
+#include <powerpc/powernv/opal.h>
+
 #include "phyp-hvcall.h"
 #include "pic_if.h"
 
@@ -93,6 +95,8 @@ static device_method_t  xics_methods[] = {
 
 struct xicp_softc {
 	struct mtx sc_mtx;
+	struct resource *mem;
+	int memrid;
 
 	int ibm_int_on;
 	int ibm_int_off;
@@ -103,6 +107,7 @@ struct xicp_softc {
 	struct {
 		int irq;
 		int vector;
+		int cpu;
 	} intvecs[256];
 	int nintvecs;
 };
@@ -137,7 +142,7 @@ xicp_probe(device_t dev)
 	if (!ofw_bus_is_compatible(dev, "ibm,ppc-xicp"))
 		return (ENXIO);
 
-	device_set_desc(dev, "PAPR virtual interrupt controller");
+	device_set_desc(dev, "External Interrupt Presentation Controller");
 	return (BUS_PROBE_GENERIC);
 }
 
@@ -151,7 +156,7 @@ xics_probe(device_t dev)
 	if (!ofw_bus_is_compatible(dev, "ibm,ppc-xics"))
 		return (ENXIO);
 
-	device_set_desc(dev, "PAPR virtual interrupt source");
+	device_set_desc(dev, "External Interrupt Source Controller");
 	return (BUS_PROBE_GENERIC);
 }
 
@@ -161,13 +166,30 @@ xicp_attach(device_t dev)
 	struct xicp_softc *sc = device_get_softc(dev);
 	phandle_t phandle = ofw_bus_get_node(dev);
 
+	if (rtas_exists()) {
+		sc->ibm_int_on = rtas_token_lookup("ibm,int-on");
+		sc->ibm_int_off = rtas_token_lookup("ibm,int-off");
+		sc->ibm_set_xive = rtas_token_lookup("ibm,set-xive");
+		sc->ibm_get_xive = rtas_token_lookup("ibm,get-xive");
+	} else if (opal_check() == 0) {
+		/* No init needed */
+	} else {
+		device_printf(dev, "Cannot attach without RTAS or OPAL\n");
+		return (ENXIO);
+	}
+
+	if (mfmsr() & PSL_HV) {
+		sc->memrid = 0;
+		sc->mem = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
+		    &sc->memrid, RF_ACTIVE);
+		if (sc->mem == NULL) {
+			device_printf(dev, "Could not alloc mem resource\n");
+			return (ENXIO);
+		}
+	}
+
 	mtx_init(&sc->sc_mtx, "XICP", NULL, MTX_DEF);
 	sc->nintvecs = 0;
-
-	sc->ibm_int_on = rtas_token_lookup("ibm,int-on");
-	sc->ibm_int_off = rtas_token_lookup("ibm,int-off");
-	sc->ibm_set_xive = rtas_token_lookup("ibm,set-xive");
-	sc->ibm_get_xive = rtas_token_lookup("ibm,get-xive");
 
 	powerpc_register_pic(dev, OF_xref_from_node(phandle), MAX_XICP_IRQS,
 	    1 /* Number of IPIs */, FALSE);
@@ -217,9 +239,21 @@ xicp_bind(device_t dev, u_int irq, cpuset_t cpumask)
 		ncpus++;
 	}
 	
+	/* XXX: super inefficient */
+	for (i = 0; i < sc->nintvecs; i++) {
+		if (sc->intvecs[i].irq == irq) {
+			sc->intvecs[i].cpu = cpu;
+			break;
+		}
+	}
+	KASSERT(i < sc->nintvecs, ("Binding non-configured interrupt"));
 
-	error = rtas_call_method(sc->ibm_set_xive, 3, 1, irq, cpu,
-	    XICP_PRIORITY, &status);
+	if (rtas_exists())
+		error = rtas_call_method(sc->ibm_set_xive, 3, 1, irq, cpu,
+		    XICP_PRIORITY, &status);
+	else
+		error = opal_call(OPAL_SET_XIVE, irq, cpu, XICP_PRIORITY);
+
 	if (error < 0)
 		panic("Cannot bind interrupt %d to CPU %d", irq, cpu);
 }
@@ -234,17 +268,30 @@ xicp_dispatch(device_t dev, struct trapframe *tf)
 	sc = device_get_softc(dev);
 	for (;;) {
 		/* Return value in R4, use the PFT call */
-		phyp_pft_hcall(H_XIRR, 0, 0, 0, 0, &xirr, &junk, &junk);
+		if (sc->mem) {
+			xirr = bus_read_4(sc->mem, 4);
+		} else {
+			/* Return value in R4, use the PFT call */
+			phyp_pft_hcall(H_XIRR, 0, 0, 0, 0, &xirr, &junk, &junk);
+		}
 		xirr &= 0x00ffffff;
 
 		if (xirr == 0) { /* No more pending interrupts? */
-			phyp_hcall(H_CPPR, (uint64_t)0xff);
+			if (sc->mem)
+				bus_write_1(sc->mem, 4, 0xff);
+			else
+				phyp_hcall(H_CPPR, (uint64_t)0xff);
 			break;
 		}
 		if (xirr == XICP_IPI) {		/* Magic number for IPIs */
 			xirr = MAX_XICP_IRQS;	/* Map to FreeBSD magic */
-			phyp_hcall(H_IPI, (uint64_t)(PCPU_GET(cpuid)),
-			    0xff); /* Clear IPI */
+
+			/* Clear IPI */
+			if (sc->mem)
+				bus_write_1(sc->mem, 12, 0xff);
+			else
+				phyp_hcall(H_IPI, (uint64_t)(PCPU_GET(cpuid)),
+				    0xff);
 		}
 
 		/* XXX: super inefficient */
@@ -269,9 +316,13 @@ xicp_enable(device_t dev, u_int irq, u_int vector)
 	KASSERT(sc->nintvecs + 1 < nitems(sc->intvecs),
 		("Too many XICP interrupts"));
 
+	/* Bind to this CPU to start: distrib. ID is last entry in gserver# */
+	cpu = PCPU_GET(cpuid);
+
 	mtx_lock(&sc->sc_mtx);
 	sc->intvecs[sc->nintvecs].irq = irq;
 	sc->intvecs[sc->nintvecs].vector = vector;
+	sc->intvecs[sc->nintvecs].cpu = cpu;
 	mb();
 	sc->nintvecs++;
 	mtx_unlock(&sc->sc_mtx);
@@ -280,30 +331,41 @@ xicp_enable(device_t dev, u_int irq, u_int vector)
 	if (irq == MAX_XICP_IRQS)
 		return;
 
-	/* Bind to this CPU to start: distrib. ID is last entry in gserver# */
-	cpu = PCPU_GET(cpuid);
-	rtas_call_method(sc->ibm_set_xive, 3, 1, irq, cpu, XICP_PRIORITY,
-	    &status);
-	xicp_unmask(dev, irq);
+	if (rtas_exists()) {
+		rtas_call_method(sc->ibm_set_xive, 3, 1, irq, cpu,
+		    XICP_PRIORITY, &status);
+		xicp_unmask(dev, irq);
+	} else {
+		opal_call(OPAL_SET_XIVE, irq, cpu, XICP_PRIORITY);
+		/* Unmask implicit for OPAL */
+	}
 }
 
 static void
 xicp_eoi(device_t dev, u_int irq)
 {
 	uint64_t xirr;
+	struct xicp_softc *sc = device_get_softc(dev);
 
 	if (irq == MAX_XICP_IRQS) /* Remap IPI interrupt to internal value */
 		irq = XICP_IPI;
 	xirr = irq | (XICP_PRIORITY << 24);
 
-	phyp_hcall(H_EOI, xirr);
+	if (sc->mem)
+		bus_write_4(sc->mem, 4, xirr);
+	else
+		phyp_hcall(H_EOI, xirr);
 }
 
 static void
 xicp_ipi(device_t dev, u_int cpu)
 {
+	struct xicp_softc *sc = device_get_softc(dev);
 
-	phyp_hcall(H_IPI, (uint64_t)cpu, XICP_PRIORITY);
+	if (sc->mem)
+		bus_write_1(sc->mem, 12, XICP_PRIORITY); /* Pick node! */
+	else
+		phyp_hcall(H_IPI, (uint64_t)cpu, XICP_PRIORITY);
 }
 
 static void
@@ -311,11 +373,22 @@ xicp_mask(device_t dev, u_int irq)
 {
 	struct xicp_softc *sc = device_get_softc(dev);
 	cell_t status;
+	int i;
 
 	if (irq == MAX_XICP_IRQS)
 		return;
 
-	rtas_call_method(sc->ibm_int_off, 1, 1, irq, &status);
+	if (rtas_exists()) {
+		rtas_call_method(sc->ibm_int_off, 1, 1, irq, &status);
+	} else {
+		for (i = 0; i < sc->nintvecs; i++) {
+			if (sc->intvecs[i].irq == irq) {
+				break;
+			}
+		}
+		KASSERT(i < sc->nintvecs, ("Masking unconfigured interrupt"));
+		opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu, 0xff);
+	}
 }
 
 static void
@@ -323,10 +396,22 @@ xicp_unmask(device_t dev, u_int irq)
 {
 	struct xicp_softc *sc = device_get_softc(dev);
 	cell_t status;
+	int i;
 
 	if (irq == MAX_XICP_IRQS)
 		return;
 
-	rtas_call_method(sc->ibm_int_on, 1, 1, irq, &status);
+	if (rtas_exists()) {
+		rtas_call_method(sc->ibm_int_on, 1, 1, irq, &status);
+	} else {
+		for (i = 0; i < sc->nintvecs; i++) {
+			if (sc->intvecs[i].irq == irq) {
+				break;
+			}
+		}
+		KASSERT(i < sc->nintvecs, ("Unmasking unconfigured interrupt"));
+		opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu,
+		    XICP_PRIORITY);
+	}
 }
 
