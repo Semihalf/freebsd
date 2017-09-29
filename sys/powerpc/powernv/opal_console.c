@@ -435,11 +435,15 @@ uart_opal_cngetc(struct consdev *cp)
 static void
 uart_opal_cnputc(struct consdev *cp, int c)
 {
-	static uint64_t events;
 	unsigned char ch = c;
+	int a;
 
-	if (cold)
-		opal_call(OPAL_POLL_EVENTS, &events); /* Clear FIFO if needed */
+	if (cold) {
+		/* Clear FIFO if needed. Must be repeated few times. */
+		for (a = 0; a < 20; a++) {
+			opal_call(OPAL_POLL_EVENTS, NULL);
+		}
+	}
 	uart_opal_put(console_sc, &ch, 1);
 }
 
