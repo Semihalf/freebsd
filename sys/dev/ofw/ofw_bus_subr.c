@@ -421,6 +421,10 @@ ofw_bus_search_intrmap(void *intr, int intrsz, void *regs, int physsz,
 
 		/* Compute the map stride size. */
 		tsz = physsz + intrsz + sizeof(phandle_t) + paddrsz + pintrsz;
+
+		if (i >= tsz)
+			return (0);
+
 		KASSERT(i >= tsz, ("ofw_bus_search_intrmap: truncated map"));
 
 		if (bcmp(ref, mptr, physsz + intrsz) == 0) {
