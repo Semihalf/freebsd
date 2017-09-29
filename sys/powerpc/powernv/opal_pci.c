@@ -62,6 +62,7 @@ __FBSDID("$FreeBSD$");
 #define	OPAL_PCI_TCE_SEG_SIZE		(256*1024*1024UL)
 #define	OPAL_PCI_TCE_R			(1UL << 0)
 #define	OPAL_PCI_TCE_W			(1UL << 1)
+#define	PHB3_TCE_KILL_INVAL_ALL		(1UL << 63)
 
 /*
  * Device interface.
@@ -154,6 +155,7 @@ struct opalpci_softc {
 	int msi_base;		/* Base XIVE number */
 	int base_msi_irq;	/* Base IRQ assigned by FreeBSD to this PIC */
 	uint64_t *tce;		/* TCE table for 1:1 mapping */
+	struct resource *r_reg;
 };
 
 static devclass_t	opalpci_devclass;
@@ -183,6 +185,15 @@ opalpci_probe(device_t dev)
 	return (BUS_PROBE_GENERIC);
 }
 
+static void
+pci_phb3_tce_invalidate_entire(struct opalpci_softc *sc)
+{
+
+	mb();
+	bus_write_8(sc->r_reg, 0x210, PHB3_TCE_KILL_INVAL_ALL);
+	mb();
+}
+
 static int
 opalpci_attach(device_t dev)
 {
@@ -191,6 +202,7 @@ opalpci_attach(device_t dev)
 	int i, err;
 	uint64_t maxmem;
 	uint64_t entries;
+	int rid;
 
 	sc = device_get_softc(dev);
 
@@ -211,6 +223,15 @@ opalpci_attach(device_t dev)
 
 	if (bootverbose)
 		device_printf(dev, "OPAL ID %#lx\n", sc->phb_id);
+
+	rid = 0;
+	sc->r_reg = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
+	    &rid, RF_ACTIVE | RF_SHAREABLE);
+	if (sc->r_reg == NULL) {
+		device_printf(dev, "Failed to allocate PHB[%jd] registers\n",
+		    (uintmax_t)sc->phb_id);
+		return (ENXIO);
+	}
 
 	/*
 	 * Reset PCI IODA table
@@ -296,6 +317,13 @@ opalpci_attach(device_t dev)
 		device_printf(dev, "DMA IOMMU mapping failed: %d\n", err);
 		return (ENXIO);
 	}
+
+	/*
+	 * Invalidate all previous TCE entries.
+	 *
+	 * TODO: add support for other PHBs than PHB3
+	 */
+	pci_phb3_tce_invalidate_entire(sc);
 
 	/*
 	 * Get MSI properties
