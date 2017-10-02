@@ -1135,6 +1135,7 @@ isp_pci_run_isr_2400(ispsoftc_t *isp)
 {
 	uint32_t r2hisr;
 	uint16_t isr, info;
+	static int printed = 0;
 
 	r2hisr = BXR4(isp, IspVirt2Off(isp, BIU2400_R2HSTSLO));
 	isp_prt(isp, ISP_LOGDEBUG3, "RISC2HOST ISR 0x%x", r2hisr);
@@ -1168,6 +1169,10 @@ isp_pci_run_isr_2400(ispsoftc_t *isp)
 #endif
 		break;
 	default:
+		if (printed == 1)
+			break;
+
+		printed = 1;
 		isp_prt(isp, ISP_LOGERR, "unknown interrupt 0x%x\n", r2hisr);
 	}
 	ISP_WRITE(isp, BIU2400_HCCR, HCCR_2400_CMD_CLEAR_RISC_INT);
