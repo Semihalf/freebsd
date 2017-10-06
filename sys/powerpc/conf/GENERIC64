@@ -94,6 +94,11 @@ options 	WITNESS			#Enable checks to detect deadlocks and cycles
 options 	WITNESS_SKIPSPIN	#Don't run witness on spinlocks for speed
 options 	MALLOC_DEBUG_MAXZONES=8	# Separate malloc(9) zones
 
+options         MD_ROOT                 #MD is a potential root device
+options         MD_ROOT_SIZE=11000      # 11MB ram disk
+makeoptions     MFS_IMAGE=/home/wma/ppc_world.img
+options         ROOTDEVNAME=\"cd9660:md0\"
+
 # Make an SMP-capable kernel by default
 options 	SMP			# Symmetric MultiProcessor Kernel
 
@@ -153,6 +158,7 @@ device		dc		# DEC/Intel 21143 and various workalikes
 device		fxp		# Intel EtherExpress PRO/100B (82557, 82558)
 device		re		# RealTek 8139C+/8169/8169S/8110S
 device		rl		# RealTek 8129/8139
+options 	DEVICE_POLLING
 
 # Pseudo devices.
 device		loop		# Network loopback
