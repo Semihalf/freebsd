@@ -58,8 +58,8 @@ __FBSDID("$FreeBSD$");
 #include "iommu_if.h"
 #include "opal.h"
 
-#define	OPAL_PCI_TCE_MAX_ENTRIES	1024UL
-#define	OPAL_PCI_TCE_SEG_SIZE		(256*1024*1024UL)
+#define	OPAL_PCI_TCE_MAX_ENTRIES	(1024*1024UL)
+#define	OPAL_PCI_TCE_SEG_SIZE		(16*1024*1024UL)
 #define	OPAL_PCI_TCE_R			(1UL << 0)
 #define	OPAL_PCI_TCE_W			(1UL << 1)
 #define	PHB3_TCE_KILL_INVAL_ALL		(1UL << 63)
@@ -301,8 +301,9 @@ opalpci_attach(device_t dev)
 		    (uintmax_t)((OPAL_PCI_TCE_MAX_ENTRIES * OPAL_PCI_TCE_SEG_SIZE) >> 30));
 	if (bootverbose)
 		device_printf(dev, "Mapping 0-%#jx for DMA\n", (uintmax_t)maxmem);
-	sc->tce = malloc(OPAL_PCI_TCE_MAX_ENTRIES * sizeof(*sc->tce),
-	    M_DEVBUF, M_NOWAIT | M_ZERO);
+	sc->tce = contigmalloc(OPAL_PCI_TCE_MAX_ENTRIES * sizeof(uint64_t),
+	    M_DEVBUF, M_NOWAIT | M_ZERO, 0,
+	    BUS_SPACE_MAXADDR_32BIT, OPAL_PCI_TCE_SEG_SIZE, 0);
 	if (sc->tce == NULL)
 		panic("Failed to allocate TCE memory for PHB %jd\n",
 		    (uintmax_t)sc->phb_id);
@@ -312,9 +313,17 @@ opalpci_attach(device_t dev)
 	err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW, sc->phb_id,
 	    OPAL_PCI_DEFAULT_PE, (OPAL_PCI_DEFAULT_PE << 1),
 	    1, pmap_kextract((uint64_t)&sc->tce[0]),
-	    OPAL_PCI_TCE_MAX_ENTRIES * sizeof(*sc->tce), OPAL_PCI_TCE_SEG_SIZE);
+	    OPAL_PCI_TCE_MAX_ENTRIES * sizeof(uint64_t), OPAL_PCI_TCE_SEG_SIZE);
 	if (err != 0) {
 		device_printf(dev, "DMA IOMMU mapping failed: %d\n", err);
+		return (ENXIO);
+	}
+
+	err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW_REAL, sc->phb_id,
+	    OPAL_PCI_DEFAULT_PE, (OPAL_PCI_DEFAULT_PE << 1) + 1,
+	    (1UL << 59), maxmem);
+	if (err != 0) {
+		device_printf(dev, "DMA 64b bypass mapping failed: %d\n", err);
 		return (ENXIO);
 	}
 
