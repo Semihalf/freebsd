@@ -350,7 +350,7 @@ static ssize_t
 get_phys_buffer(vm_offset_t dest, const size_t len, void **buf)
 {
 	int i = 0;
-	const size_t segsize = 2*1024*1024;
+	const size_t segsize = 4*1024*1024;
 
 	for (i = 0; i < nkexec_segments; i++) {
 		if (dest >= (vm_offset_t)loaded_segments[i].mem &&
@@ -465,6 +465,17 @@ kboot_loadaddr(u_int type, void *data, uint64_t addr)
 static void
 kboot_kseg_get(int *nseg, void **ptr)
 {
+#if 0
+	int a;
+
+	for (a = 0; a < nkexec_segments; a++) {
+		printf("kseg_get: %jx %jx %jx %jx\n",
+			(uintmax_t)loaded_segments[a].buf,
+			(uintmax_t)loaded_segments[a].bufsz,
+			(uintmax_t)loaded_segments[a].mem,
+			(uintmax_t)loaded_segments[a].memsz);
+	}
+#endif
 
 	*nseg = nkexec_segments;
 	*ptr = &loaded_segments[0];
