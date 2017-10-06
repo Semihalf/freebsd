@@ -1583,7 +1583,7 @@ ahci_execute_transaction(struct ahci_slot *slot)
 	/* Device reset commands doesn't interrupt. Poll them. */
 	if (ccb->ccb_h.func_code == XPT_ATA_IO &&
 	    (ccb->ataio.cmd.command == ATA_DEVICE_RESET || softreset)) {
-		int count, timeout = ccb->ccb_h.timeout * 100;
+		int count, timeout = ccb->ccb_h.timeout * 10;
 		enum ahci_err_type et = AHCI_ERR_NONE;
 
 		for (count = 0; count < timeout; count++) {
