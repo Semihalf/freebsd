@@ -376,6 +376,8 @@ powernv_smp_start_cpu(platform_t plat, struct pcpu *pc)
 	ap_pcpu = pc;
 	powerpc_sync();
 
+	return -1;
+
 	result = opal_call(OPAL_START_CPU, pc->pc_hwref, EXC_RST);
 	if (result != OPAL_SUCCESS) {
 		printf("OPAL error (%d): unable to start AP %d (HW %ld)\n",
