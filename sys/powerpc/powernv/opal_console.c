@@ -438,7 +438,7 @@ uart_opal_cnputc(struct consdev *cp, int c)
 	unsigned char ch = c;
 	int a;
 
-	if (cold) {
+	if (1) {
 		/* Clear FIFO if needed. Must be repeated few times. */
 		for (a = 0; a < 20; a++) {
 			opal_call(OPAL_POLL_EVENTS, NULL);
@@ -465,7 +465,7 @@ uart_opal_ttyoutwakeup(struct tty *tp)
 	int len;
 
 	sc = tty_softc(tp);
-	
+
 	while ((len = ttydisc_getc(tp, buffer, sizeof(buffer))) != 0)
 		uart_opal_put(sc, buffer, len);
 }
@@ -483,6 +483,8 @@ uart_opal_intr(void *v)
 		ttydisc_rint(tp, c, 0);
 	ttydisc_rint_done(tp);
 	tty_unlock(tp);
+
+	opal_call(OPAL_POLL_EVENTS, NULL);
 
 	if (sc->irqres == NULL)
 		callout_reset(&sc->callout, sc->polltime, uart_opal_intr, sc);
