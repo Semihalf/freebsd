@@ -221,6 +221,8 @@ cpu_mp_unleash(void *dummy)
 				timeout = 2000;	/* wait 2sec for the AP */
 				while (!pc->pc_awake && --timeout > 0)
 					DELAY(1000);
+			} else {
+				CPU_CLR(pc->pc_cpuid, &all_cpus);
 			}
 		} else {
 			pc->pc_awake = 1;
@@ -231,8 +233,10 @@ cpu_mp_unleash(void *dummy)
 				    pc->pc_cpuid, (uintmax_t)pc->pc_hwref,
 				    pc->pc_awake);
 			smp_cpus++;
-		} else
+		} else {
 			CPU_SET(pc->pc_cpuid, &stopped_cpus);
+			CPU_CLR(pc->pc_cpuid, &all_cpus);
+		}
 	}
 
 	ap_awake = 1;
