@@ -33,8 +33,8 @@
 /*$FreeBSD$*/
 
 
-#ifndef _EM_H_DEFINED_
-#define _EM_H_DEFINED_
+#ifndef _LEM_H_DEFINED_
+#define _LEM_H_DEFINED_
 
 
 /* Tunables */
@@ -52,12 +52,9 @@
  *      (num_tx_desc * sizeof(struct e1000_tx_desc)) % 128 == 0
  */
 #define EM_MIN_TXD		80
+#define EM_MAX_TXD_82543	256
 #define EM_MAX_TXD		4096
-#ifdef EM_MULTIQUEUE
-#define EM_DEFAULT_TXD		4096
-#else
-#define EM_DEFAULT_TXD		1024
-#endif
+#define EM_DEFAULT_TXD		EM_MAX_TXD_82543
 
 /*
  * EM_RXD - Maximum number of receive Descriptors
@@ -73,12 +70,9 @@
  *      (num_tx_desc * sizeof(struct e1000_tx_desc)) % 128 == 0
  */
 #define EM_MIN_RXD		80
+#define EM_MAX_RXD_82543	256
 #define EM_MAX_RXD		4096
-#ifdef EM_MULTIQUEUE
-#define EM_DEFAULT_RXD		4096
-#else
-#define EM_DEFAULT_RXD		1024
-#endif
+#define EM_DEFAULT_RXD	EM_MAX_RXD_82543
 
 /*
  * EM_TIDV - Transmit Interrupt Delay Value
@@ -125,11 +119,7 @@
  *            restoring the network connection. To eliminate the potential
  *            for the hang ensure that EM_RDTR is set to 0.
  */
-#ifdef EM_MULTIQUEUE
-#define EM_RDTR                         64
-#else
 #define EM_RDTR                         0
-#endif
 
 /*
  * Receive Interrupt Absolute Delay Timer (Not valid for 82542/82543/82544)
@@ -142,11 +132,7 @@
  *   along with EM_RDTR, may improve traffic throughput in specific network
  *   conditions.
  */
-#ifdef EM_MULTIQUEUE
-#define EM_RADV                         128
-#else
 #define EM_RADV                         64
-#endif
 
 /*
  * This parameter controls the max duration of transmit watchdog.
@@ -158,6 +144,7 @@
  * transmit descriptors.
  */
 #define EM_TX_CLEANUP_THRESHOLD	(adapter->num_tx_desc / 8)
+#define EM_TX_OP_THRESHOLD	(adapter->num_tx_desc / 32)
 
 /*
  * This parameter controls whether or not autonegotation is enabled.
@@ -204,22 +191,10 @@
 #define EM_EEPROM_APME			0x400;
 #define EM_82544_APME			0x0004;
 
-/*
- * Driver state logic for the detection of a hung state
- * in hardware.  Set TX_HUNG whenever a TX packet is used
- * (data is sent) and clear it when txeof() is invoked if
- * any descriptors from the ring are cleaned/reclaimed.
- * Increment internal counter if no descriptors are cleaned
- * and compare to TX_MAXTRIES.  When counter > TX_MAXTRIES,
- * reset adapter.
- */
-#define EM_TX_IDLE			0x00000000
-#define EM_TX_BUSY			0x00000001
-#define EM_TX_HUNG			0x80000000
-#define EM_TX_MAXTRIES			10
-
-#define PCICFG_DESC_RING_STATUS		0xe4
-#define FLUSH_DESC_REQUIRED		0x100
+/* Code compatilbility between 6 and 7 */
+#ifndef ETHER_BPF_MTAP
+#define ETHER_BPF_MTAP			BPF_MTAP
+#endif
 
 /*
  * TDBA/RDBA should be aligned on 16 byte boundary. But TDLEN/RDLEN should be
@@ -228,20 +203,13 @@
  */
 #define EM_DBA_ALIGN			128
 
-/*
- * See Intel 82574 Driver Programming Interface Manual, Section 10.2.6.9
- */
-#define TARC_COMPENSATION_MODE	(1 << 7)	/* Compensation Mode */
-#define TARC_SPEED_MODE_BIT 	(1 << 21)	/* On PCI-E MACs only */
-#define TARC_MQ_FIX		(1 << 23) | \
-				(1 << 24) | \
-				(1 << 25)	/* Handle errata in MQ mode */
-#define TARC_ERRATA_BIT 	(1 << 26)	/* Note from errata on 82574 */
+#define SPEED_MODE_BIT (1<<21)		/* On PCI-E MACs only */
 
 /* PCI Config defines */
 #define EM_BAR_TYPE(v)		((v) & EM_BAR_TYPE_MASK)
 #define EM_BAR_TYPE_MASK	0x00000001
 #define EM_BAR_TYPE_MMEM	0x00000000
+#define EM_BAR_TYPE_IO		0x00000001
 #define EM_BAR_TYPE_FLASH	0x0014 
 #define EM_BAR_MEM_TYPE(v)	((v) & EM_BAR_MEM_TYPE_MASK)
 #define EM_BAR_MEM_TYPE_MASK	0x00000006
@@ -249,7 +217,6 @@
 #define EM_BAR_MEM_TYPE_64BIT	0x00000004
 #define EM_MSIX_BAR		3	/* On 82575 */
 
-/* More backward compatibility */
 #if __FreeBSD_version < 900000
 #define SYSCTL_ADD_UQUAD SYSCTL_ADD_QUAD
 #endif
@@ -271,10 +238,7 @@
 
 #define EM_MAX_SCATTER		40
 #define EM_VFTA_SIZE		128
-#define EM_TSO_SIZE		(65535 + sizeof(struct ether_vlan_header))
-#define EM_TSO_SEG_SIZE		4096	/* Max dma segment size */
 #define EM_MSIX_MASK		0x01F00000 /* For 82574 use */
-#define EM_MSIX_LINK		0x01000000 /* For 82574 use */
 #define ETH_ZLEN		60
 #define ETH_ADDR_LEN		6
 #define CSUM_OFFLOAD		7	/* Offload bits in mbuf flag */
@@ -286,14 +250,25 @@
  * solve it just using this define.
  */
 #define EM_EIAC 0x000DC
-/*
- * 82574 only reports 3 MSI-X vectors by default;
- * defines assisting with making it report 5 are
- * located here.
- */
-#define EM_NVM_PCIE_CTRL	0x1B
-#define EM_NVM_MSIX_N_MASK	(0x7 << EM_NVM_MSIX_N_SHIFT)
-#define EM_NVM_MSIX_N_SHIFT	7
+
+/* Used in for 82547 10Mb Half workaround */
+#define EM_PBA_BYTES_SHIFT	0xA
+#define EM_TX_HEAD_ADDR_SHIFT	7
+#define EM_PBA_TX_MASK		0xFFFF0000
+#define EM_FIFO_HDR		0x10
+#define EM_82547_PKT_THRESH	0x3e0
+
+/* Precision Time Sync (IEEE 1588) defines */
+#define ETHERTYPE_IEEE1588	0x88F7
+#define PICOSECS_PER_TICK	20833
+#define TSYNC_PORT		319 /* UDP port for the protocol */
+
+#ifdef NIC_PARAVIRT
+#define	E1000_PARA_SUBDEV	0x1101		/* special id */
+#define	E1000_CSBAL		0x02830		/* csb phys. addr. low */
+#define	E1000_CSBAH		0x02834		/* csb phys. addr. hi */
+#include <net/paravirt.h>
+#endif /* NIC_PARAVIRT */
 
 /*
  * Bus dma allocation structure used by
@@ -316,135 +291,52 @@ struct em_int_delay_info {
 	int value;			/* Current value in usecs */
 };
 
-/*
- * The transmit ring, one per tx queue
- */
-struct tx_ring {
-        struct adapter          *adapter;
-        struct mtx              tx_mtx;
-        char                    mtx_name[16];
-        u32                     me;
-        u32                     msix;
-	u32			ims;
-        int			busy;
-	struct em_dma_alloc	txdma;
-	struct e1000_tx_desc	*tx_base;
-        struct task             tx_task;
-        struct taskqueue        *tq;
-        u32                     next_avail_desc;
-        u32                     next_to_clean;
-        struct em_txbuffer	*tx_buffers;
-        volatile u16            tx_avail;
-	u32			tx_tso;		/* last tx was tso */
-        u16			last_hw_offload;
-	u8			last_hw_ipcso;
-	u8			last_hw_ipcss;
-	u8			last_hw_tucso;
-	u8			last_hw_tucss;
-#if __FreeBSD_version >= 800000
-	struct buf_ring         *br;
-#endif
-	/* Interrupt resources */
-        bus_dma_tag_t           txtag;
-	void                    *tag;
-	struct resource         *res;
-        unsigned long		tx_irq;
-        unsigned long		no_desc_avail;
-};
-
-/*
- * The Receive ring, one per rx queue
- */
-struct rx_ring {
-        struct adapter          *adapter;
-        u32                     me;
-        u32                     msix;
-	u32			ims;
-        struct mtx              rx_mtx;
-        char                    mtx_name[16];
-        u32                     payload;
-        struct task             rx_task;
-        struct taskqueue        *tq;
-        union e1000_rx_desc_extended	*rx_base;
-        struct em_dma_alloc	rxdma;
-        u32			next_to_refresh;
-        u32			next_to_check;
-        struct em_rxbuffer	*rx_buffers;
-	struct mbuf		*fmp;
-	struct mbuf		*lmp;
-
-        /* Interrupt resources */
-        void                    *tag;
-        struct resource         *res;
-        bus_dma_tag_t           rxtag;
-	bool			discard;
-
-        /* Soft stats */
-        unsigned long		rx_irq;
-        unsigned long		rx_discarded;
-        unsigned long		rx_packets;
-        unsigned long		rx_bytes;
-};
-
-
 /* Our adapter structure */
 struct adapter {
-	if_t 		ifp;
+	if_t		ifp;
 	struct e1000_hw	hw;
 
 	/* FreeBSD operating-system-specific structures. */
 	struct e1000_osdep osdep;
-	struct device	*dev;
+	device_t	dev;
 	struct cdev	*led_dev;
 
 	struct resource *memory;
 	struct resource *flash;
-	struct resource *msix_mem;
-	int		memrid;
+	struct resource *msix;
 
-	struct resource	*res;
-	void		*tag;
-	u32		linkvec;
-	u32		ivars;
+	struct resource	*ioport;
+	int		io_rid;
+
+	/* 82574 may use 3 int vectors */
+	struct resource	*res[3];
+	void		*tag[3];
+	int		rid[3];
 
 	struct ifmedia	media;
 	struct callout	timer;
-	int		msix;
+	struct callout	tx_fifo_timer;
+	bool		watchdog_check;
+	int		watchdog_time;
+	int		msi;
 	int		if_flags;
 	int		max_frame_size;
 	int		min_frame_size;
 	struct mtx	core_mtx;
+	struct mtx	tx_mtx;
+	struct mtx	rx_mtx;
 	int		em_insert_vlan_header;
-	u32		ims;
-	bool		in_detach;
 
 	/* Task for FAST handling */
 	struct task     link_task;
-	struct task     que_task;
+	struct task     rxtx_task;
+	struct task     rx_task;
+	struct task     tx_task;
 	struct taskqueue *tq;           /* private task queue */
 
 	eventhandler_tag vlan_attach;
 	eventhandler_tag vlan_detach;
-
-	u16	num_vlans;
-	u8	num_queues;
-
-        /*
-         * Transmit rings:
-         *      Allocated at run time, an array of rings.
-         */
-        struct tx_ring  *tx_rings;
-        int             num_tx_desc;
-        u32		txd_cmd;
-
-        /*
-         * Receive rings:
-         *      Allocated at run time, an array of rings.
-         */
-        struct rx_ring  *rx_rings;
-        int             num_rx_desc;
-        u32             rx_process_limit;
-	u32		rx_mbuf_sz;
+	u32	num_vlans;
 
 	/* Management and WOL features */
 	u32		wol;
@@ -463,11 +355,11 @@ struct adapter {
 	u32		shadow_vfta[EM_VFTA_SIZE];
 
 	/* Info about the interface */
-	u16		link_active;
-	u16		fc;
-	u16		link_speed;
-	u16		link_duplex;
-	u32		smartspeed;
+	uint8_t		link_active;
+	uint16_t	link_speed;
+	uint16_t	link_duplex;
+	uint32_t	smartspeed;
+	uint32_t	fc_setting;
 
 	struct em_int_delay_info tx_int_delay;
 	struct em_int_delay_info tx_abs_int_delay;
@@ -475,25 +367,109 @@ struct adapter {
 	struct em_int_delay_info rx_abs_int_delay;
 	struct em_int_delay_info tx_itr;
 
+	/*
+	 * Transmit definitions
+	 *
+	 * We have an array of num_tx_desc descriptors (handled
+	 * by the controller) paired with an array of tx_buffers
+	 * (at tx_buffer_area).
+	 * The index of the next available descriptor is next_avail_tx_desc.
+	 * The number of remaining tx_desc is num_tx_desc_avail.
+	 */
+	struct em_dma_alloc	txdma;		/* bus_dma glue for tx desc */
+	struct e1000_tx_desc	*tx_desc_base;
+	uint32_t		next_avail_tx_desc;
+	uint32_t		next_tx_to_clean;
+	volatile uint16_t	num_tx_desc_avail;
+        uint16_t		num_tx_desc;
+        uint16_t		last_hw_offload;
+        uint32_t		txd_cmd;
+	struct em_buffer	*tx_buffer_area;
+	bus_dma_tag_t		txtag;		/* dma tag for tx */
+	uint32_t	   	tx_tso;		/* last tx was tso */
+
+	/* 
+	 * Receive definitions
+	 *
+	 * we have an array of num_rx_desc rx_desc (handled by the
+	 * controller), and paired with an array of rx_buffers
+	 * (at rx_buffer_area).
+	 * The next pair to check on receive is at offset next_rx_desc_to_check
+	 */
+	struct em_dma_alloc	rxdma;		/* bus_dma glue for rx desc */
+	struct e1000_rx_desc	*rx_desc_base;
+	uint32_t		next_rx_desc_to_check;
+	uint32_t		rx_buffer_len;
+	uint16_t		num_rx_desc;
+	int			rx_process_limit;
+	struct em_buffer	*rx_buffer_area;
+	bus_dma_tag_t		rxtag;
+	bus_dmamap_t		rx_sparemap;
+
+	/*
+	 * First/last mbuf pointers, for
+	 * collecting multisegment RX packets.
+	 */
+	struct mbuf	       *fmp;
+	struct mbuf	       *lmp;
+
 	/* Misc stats maintained by the driver */
 	unsigned long	dropped_pkts;
 	unsigned long	link_irq;
+	unsigned long	mbuf_cluster_failed;
 	unsigned long	mbuf_defrag_failed;
+	unsigned long	no_tx_desc_avail1;
+	unsigned long	no_tx_desc_avail2;
 	unsigned long	no_tx_dma_setup;
 	unsigned long	no_tx_map_avail;
-	unsigned long	rx_overruns;
 	unsigned long	watchdog_events;
+	unsigned long	rx_irq;
+	unsigned long	rx_overruns;
+	unsigned long	tx_irq;
+
+	/* 82547 workaround */
+	uint32_t	tx_fifo_size;
+	uint32_t	tx_fifo_head;
+	uint32_t	tx_fifo_head_addr;
+	uint64_t	tx_fifo_reset_cnt;
+	uint64_t	tx_fifo_wrk_cnt;
+	uint32_t	tx_head_addr;
+
+        /* For 82544 PCIX Workaround */
+	boolean_t       pcix_82544;
+	boolean_t       in_detach;
+
+#ifdef NIC_SEND_COMBINING
+	/* 0 = idle; 1xxxx int-pending; 3xxxx int + d pending + tdt */
+#define MIT_PENDING_INT	0x10000	/* pending interrupt */
+#define MIT_PENDING_TDT	0x30000	/* both intr and tdt write are pending */
+	uint32_t shadow_tdt;
+	uint32_t sc_enable;
+#endif /* NIC_SEND_COMBINING */
+#ifdef BATCH_DISPATCH
+	uint32_t batch_enable;
+#endif /* BATCH_DISPATCH */
+
+#ifdef NIC_PARAVIRT
+	struct em_dma_alloc	csb_mem;	/* phys address */
+	struct paravirt_csb	*csb;		/* virtual addr */
+	uint32_t rx_retries;	/* optimize rx loop */
+	uint32_t		tdt_csb_count;// XXX stat
+	uint32_t		tdt_reg_count;// XXX stat
+	uint32_t		tdt_int_count;// XXX stat
+	uint32_t		guest_need_kick_count;// XXX stat
+#endif /* NIC_PARAVIRT */
 
 	struct e1000_hw_stats stats;
 };
 
-/********************************************************************************
+/* ******************************************************************************
  * vendor_info_array
  *
  * This array contains the list of Subvendor/Subdevice IDs on which the driver
  * should load.
  *
- ********************************************************************************/
+ * ******************************************************************************/
 typedef struct _em_vendor_info_t {
 	unsigned int vendor_id;
 	unsigned int device_id;
@@ -502,34 +478,24 @@ typedef struct _em_vendor_info_t {
 	unsigned int index;
 } em_vendor_info_t;
 
-struct em_txbuffer {
+struct em_buffer {
 	int		next_eop;  /* Index of the desc to watch */
         struct mbuf    *m_head;
         bus_dmamap_t    map;         /* bus_dma map for packet */
 };
 
-struct em_rxbuffer {
-	int		next_eop;  /* Index of the desc to watch */
-        struct mbuf    *m_head;
-        bus_dmamap_t    map;         /* bus_dma map for packet */
-	bus_addr_t	paddr;
-};
-
-
-/*
-** Find the number of unrefreshed RX descriptors
-*/
-static inline u16
-e1000_rx_unrefreshed(struct rx_ring *rxr)
+/* For 82544 PCIX  Workaround */
+typedef struct _ADDRESS_LENGTH_PAIR
 {
-	struct adapter	*adapter = rxr->adapter;
+	uint64_t   address;
+	uint32_t   length;
+} ADDRESS_LENGTH_PAIR, *PADDRESS_LENGTH_PAIR;
 
-	if (rxr->next_to_check > rxr->next_to_refresh)
-		return (rxr->next_to_check - rxr->next_to_refresh - 1);
-	else
-		return ((adapter->num_rx_desc + rxr->next_to_check) -
-		    rxr->next_to_refresh - 1); 
-}
+typedef struct _DESCRIPTOR_PAIR
+{
+	ADDRESS_LENGTH_PAIR descriptor[4];
+	uint32_t   elements;
+} DESC_ARRAY, *PDESC_ARRAY;
 
 #define	EM_CORE_LOCK_INIT(_sc, _name) \
 	mtx_init(&(_sc)->core_mtx, _name, "EM Core Lock", MTX_DEF)
@@ -549,11 +515,5 @@ e1000_rx_unrefreshed(struct rx_ring *rxr)
 #define	EM_RX_UNLOCK(_sc)		mtx_unlock(&(_sc)->rx_mtx)
 #define	EM_CORE_LOCK_ASSERT(_sc)	mtx_assert(&(_sc)->core_mtx, MA_OWNED)
 #define	EM_TX_LOCK_ASSERT(_sc)		mtx_assert(&(_sc)->tx_mtx, MA_OWNED)
-#define	EM_RX_LOCK_ASSERT(_sc)		mtx_assert(&(_sc)->rx_mtx, MA_OWNED)
 
-#define EM_RSSRK_SIZE	4
-#define EM_RSSRK_VAL(key, i)		(key[(i) * EM_RSSRK_SIZE] | \
-					 key[(i) * EM_RSSRK_SIZE + 1] << 8 | \
-					 key[(i) * EM_RSSRK_SIZE + 2] << 16 | \
-					 key[(i) * EM_RSSRK_SIZE + 3] << 24)
-#endif /* _EM_H_DEFINED_ */
+#endif /* _LEM_H_DEFINED_ */
