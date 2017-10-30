@@ -262,7 +262,8 @@ cpu_mp_unleash(void *dummy)
 	DELAY(10000);
 
 	/* XXX Atomic set operation? */
-	smp_started = 1;
+	if (smp_cpus > 1)
+		smp_started = 1;
 }
 
 SYSINIT(start_aps, SI_SUB_SMP, SI_ORDER_FIRST, cpu_mp_unleash, NULL);
