@@ -310,21 +310,25 @@ opalpci_attach(device_t dev)
 
 	for (i = 0; i < entries; i++)
 		sc->tce[i] = (i * OPAL_PCI_TCE_SEG_SIZE) | OPAL_PCI_TCE_R | OPAL_PCI_TCE_W;
-	err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW, sc->phb_id,
-	    OPAL_PCI_DEFAULT_PE, (OPAL_PCI_DEFAULT_PE << 1),
-	    1, pmap_kextract((uint64_t)&sc->tce[0]),
-	    OPAL_PCI_TCE_MAX_ENTRIES * sizeof(uint64_t), OPAL_PCI_TCE_SEG_SIZE);
-	if (err != 0) {
-		device_printf(dev, "DMA IOMMU mapping failed: %d\n", err);
-		return (ENXIO);
-	}
 
-	err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW_REAL, sc->phb_id,
-	    OPAL_PCI_DEFAULT_PE, (OPAL_PCI_DEFAULT_PE << 1) + 1,
-	    (1UL << 59), maxmem);
-	if (err != 0) {
-		device_printf(dev, "DMA 64b bypass mapping failed: %d\n", err);
-		return (ENXIO);
+	/* Map TCE for every PE. It seems necessary for Power8 */
+	for (i = 0; i < npe; i++) {
+		err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW, sc->phb_id,
+		    i, (i << 1),
+		    1, pmap_kextract((uint64_t)&sc->tce[0]),
+		    OPAL_PCI_TCE_MAX_ENTRIES * sizeof(uint64_t), OPAL_PCI_TCE_SEG_SIZE);
+		if (err != 0) {
+			device_printf(dev, "DMA IOMMU mapping failed: %d\n", err);
+			return (ENXIO);
+		}
+
+		err = opal_call(OPAL_PCI_MAP_PE_DMA_WINDOW_REAL, sc->phb_id,
+		    i, (i << 1) + 1,
+		    (1UL << 59), maxmem);
+		if (err != 0) {
+			device_printf(dev, "DMA 64b bypass mapping failed: %d\n", err);
+			return (ENXIO);
+		}
 	}
 
 	/*
