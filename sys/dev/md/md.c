@@ -138,7 +138,7 @@ SYSCTL_INT(_vm, OID_AUTO, md_malloc_wait, CTLFLAG_RW, &md_malloc_wait, 0,
  * Applications that patch the object with the image can determine
  * the size looking at the oldmfs section size within the kernel.
  */
-u_char mfs_root[MD_ROOT_SIZE*1024] __attribute__ ((section ("oldmfs")));
+u_char mfs_root[MD_ROOT_SIZE*1024]; // __attribute__ ((section ("oldmfs")));
 const int mfs_root_size = sizeof(mfs_root);
 #else
 extern volatile u_char __weak_symbol mfs_root;
@@ -1832,6 +1832,7 @@ g_md_init(struct g_class *mp __unused)
 		sx_xlock(&md_sx);
 		md_preloaded(__DEVOLATILE(u_char *, &mfs_root), mfs_root_size,
 		    NULL);
+		printf("PDK: PUT IMAGE HERE %p\n", mfs_root);
 		sx_xunlock(&md_sx);
 	}
 #endif
