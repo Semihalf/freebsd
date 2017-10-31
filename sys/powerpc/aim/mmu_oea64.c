@@ -716,8 +716,7 @@ moea64_early_bootstrap(mmu_t mmup, vm_offset_t kernelstart, vm_offset_t kernelen
 
 	phys_avail_count = 0;
 	physsz = 0;
-	/* Limit system memory to 4G */
-	hwphyssz = (4UL << 30);
+	hwphyssz = 0;
 	TUNABLE_ULONG_FETCH("hw.physmem", (u_long *) &hwphyssz);
 	for (i = 0, j = 0; i < regions_sz; i++, j += 2) {
 		CTR3(KTR_PMAP, "region: %#zx - %#zx (%#zx)",
