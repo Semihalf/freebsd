@@ -46,6 +46,17 @@ dev/iicbus/max6690.c		optional	max6690 powermac
 dev/iicbus/ofw_iicbus.c		optional	iicbus aim
 dev/nand/nfc_fsl.c		optional	nand mpc85xx
 dev/nand/nfc_rb.c		optional	nand mpc85xx
+dev/nvd/nvd.c			optional	nvd nvme
+dev/nvme/nvme.c			optional	nvme
+dev/nvme/nvme_ctrlr.c		optional	nvme
+dev/nvme/nvme_ctrlr_cmd.c	optional	nvme
+dev/nvme/nvme_ns.c		optional	nvme
+dev/nvme/nvme_ns_cmd.c		optional	nvme
+dev/nvme/nvme_qpair.c		optional	nvme
+dev/nvme/nvme_sim.c		optional	nvme scbus
+dev/nvme/nvme_sysctl.c		optional	nvme
+dev/nvme/nvme_test.c		optional	nvme
+dev/nvme/nvme_util.c		optional	nvme
 # ofw can be either aim or fdt: fdt case handled in files. aim only powerpc specific.
 dev/ofw/openfirm.c		optional	aim
 dev/ofw/openfirmio.c		optional	aim
