@@ -96,7 +96,7 @@ options 	MALLOC_DEBUG_MAXZONES=8	# Separate malloc(9) zones
 
 options         MD_ROOT                 #MD is a potential root device
 options         MD_ROOT_SIZE=20000      #20MB ram disk
-makeoptions     MFS_IMAGE=/home/wma/ppc_world.img
+makeoptions     MFS_IMAGE=~/ppc_world.img
 options         ROOTDEVNAME=\"cd9660:md0\"
 
 # Make an SMP-capable kernel by default
