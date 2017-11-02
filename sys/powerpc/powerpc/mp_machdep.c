@@ -221,8 +221,6 @@ cpu_mp_unleash(void *dummy)
 				timeout = 2000;	/* wait 2sec for the AP */
 				while (!pc->pc_awake && --timeout > 0)
 					DELAY(1000);
-			} else {
-				CPU_CLR(pc->pc_cpuid, &all_cpus);
 			}
 		} else {
 			PCPU_SET(pir, mfspr(SPR_PIR));
@@ -233,10 +231,8 @@ cpu_mp_unleash(void *dummy)
 				printf("Adding CPU %d, pir=%x, awake=%x\n",
 				    pc->pc_cpuid, pc->pc_pir, pc->pc_awake);
 			smp_cpus++;
-		} else {
+		} else
 			CPU_SET(pc->pc_cpuid, &stopped_cpus);
-			CPU_CLR(pc->pc_cpuid, &all_cpus);
-		}
 	}
 
 	ap_awake = 1;
