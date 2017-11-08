@@ -58,11 +58,23 @@ SYSINIT(cpu_save_config, SI_SUB_CPU, SI_ORDER_ANY, cpudep_save_config, NULL);
 void
 cpudep_ap_early_bootstrap(void)
 {
+	struct pcpu *tmp_pc, *pc = NULL;
 #ifndef __powerpc64__
 	register_t reg;
 #endif
 
-	__asm __volatile("mtsprg 0, %0" :: "r"(ap_pcpu));
+	/* Find apropriate pcpu structure */
+	STAILQ_FOREACH(tmp_pc, &cpuhead, pc_allcpu) {
+		if (tmp_pc->pc_hwref == mfspr(SPR_PIR)) {
+			pc = tmp_pc;
+			break;
+		}
+	}
+
+	KASSERT(pc != NULL, ("cpudep_ap_early_bootstrap: can't find pcpu "
+	    "structure for cpu"));
+
+	__asm __volatile("mtsprg 0, %0" :: "r"(pc));
 	powerpc_sync();
 
 	switch (mfpvr() >> 16) {
