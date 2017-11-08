@@ -54,10 +54,6 @@ __FBSDID("$FreeBSD$");
 #include "platform_if.h"
 #include "opal.h"
 
-#ifdef SMP
-extern void *ap_pcpu;
-#endif
-
 static int powernv_probe(platform_t);
 static int powernv_attach(platform_t);
 void powernv_mem_regions(platform_t, struct mem_region *phys, int *physsz,
@@ -373,7 +369,6 @@ powernv_smp_start_cpu(platform_t plat, struct pcpu *pc)
 {
 	int result;
 
-	ap_pcpu = pc;
 	powerpc_sync();
 
 	result = opal_call(OPAL_START_CPU, pc->pc_hwref, EXC_RST);
