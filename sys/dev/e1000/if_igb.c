@@ -4073,7 +4073,7 @@ igb_txeof(struct tx_ring *txr)
 		if (eop == NULL) /* No work */
 			break;
 
-		if ((eop->wb.status & E1000_TXD_STAT_DD) == 0)
+		if ((le32toh(eop->wb.status) & E1000_TXD_STAT_DD) == 0)
 			break;	/* I/O not complete */
 
 		if (buf->m_head) {
