@@ -107,6 +107,16 @@ typedef __uint128_t uint128_t;
 static __inline uint128_t
 to128(void *p)
 {
+#if _BYTE_ORDER != _LITTLE_ENDIAN
+	/* Input comes from device - convert endianess first */
+	char *tmp = (char*)p;
+	char b;
+	for (int i = 0; i < 8; i++) {
+		b = tmp[i];
+		tmp[i] = tmp[15-i];
+		tmp[15-i] = b;
+	}
+#endif
 	return *(uint128_t *)p;
 }
 

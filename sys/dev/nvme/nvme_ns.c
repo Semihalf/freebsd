@@ -172,13 +172,20 @@ nvme_ns_get_max_io_xfer_size(struct nvme_namespace *ns)
 uint32_t
 nvme_ns_get_sector_size(struct nvme_namespace *ns)
 {
-	return (1 << ns->data.lbaf[ns->data.flbas.format].lbads);
+	uint8_t flbas_fmt, lbads;
+
+	flbas_fmt = (ns->data.flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
+		NVME_NS_DATA_FLBAS_FORMAT_MASK;
+	lbads = (le32toh(ns->data.lbaf[flbas_fmt]) >> NVME_NS_DATA_LBAF_LBADS_SHIFT) &
+		NVME_NS_DATA_LBAF_LBADS_MASK;
+
+	return (1 << lbads);
 }
 
 uint64_t
 nvme_ns_get_num_sectors(struct nvme_namespace *ns)
 {
-	return (ns->data.nsze);
+	return (le64toh(ns->data.nsze));
 }
 
 uint64_t
@@ -265,8 +272,10 @@ nvme_bio_child_inbed(struct bio *parent, int bio_error)
 	inbed = atomic_fetchadd_int(&parent->bio_inbed, 1) + 1;
 	if (inbed == children) {
 		bzero(&parent_cpl, sizeof(parent_cpl));
-		if (parent->bio_flags & BIO_ERROR)
-			parent_cpl.status.sc = NVME_SC_DATA_TRANSFER_ERROR;
+		if (parent->bio_flags & BIO_ERROR) {
+			parent_cpl.status &= ~(NVME_STATUS_SC_MASK << NVME_STATUS_SC_SHIFT);
+			parent_cpl.status |= (NVME_SC_DATA_TRANSFER_ERROR) << NVME_STATUS_SC_SHIFT;
+		}
 		nvme_ns_bio_done(parent, &parent_cpl);
 	}
 }
@@ -483,6 +492,10 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 {
 	struct nvme_completion_poll_status	status;
 	int					unit;
+	uint16_t				oncs;
+	uint8_t					dsm;
+	uint8_t					flbas_fmt;
+	uint8_t					vwc_present;
 
 	ns->ctrlr = ctrlr;
 	ns->id = id;
@@ -519,23 +532,29 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 	 * standard says the entire id will be zeros, so this is a
 	 * cheap way to test for that.
 	 */
-	if (ns->data.nsze == 0)
+	if (le64toh(ns->data.nsze) == 0)
 		return (ENXIO);
 
+	flbas_fmt = (ns->data.flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
+		NVME_NS_DATA_FLBAS_FORMAT_MASK;
 	/*
 	 * Note: format is a 0-based value, so > is appropriate here,
 	 *  not >=.
 	 */
-	if (ns->data.flbas.format > ns->data.nlbaf) {
+	if (flbas_fmt > ns->data.nlbaf) {
 		printf("lba format %d exceeds number supported (%d)\n",
-		    ns->data.flbas.format, ns->data.nlbaf+1);
+		    flbas_fmt, ns->data.nlbaf + 1);
 		return (ENXIO);
 	}
 
-	if (ctrlr->cdata.oncs.dsm)
+	oncs = le16toh(ctrlr->cdata.oncs);
+	dsm = (oncs >> NVME_CTRLR_DATA_ONCS_DSM_SHIFT) & NVME_CTRLR_DATA_ONCS_DSM_MASK;
+	if (dsm)
 		ns->flags |= NVME_NS_DEALLOCATE_SUPPORTED;
 
-	if (ctrlr->cdata.vwc.present)
+	vwc_present = (ctrlr->cdata.vwc >> NVME_CTRLR_DATA_VWC_PRESENT_SHIFT) &
+		NVME_CTRLR_DATA_VWC_PRESENT_MASK;
+	if (vwc_present)
 		ns->flags |= NVME_NS_FLUSH_SUPPORTED;
 
 	/*
