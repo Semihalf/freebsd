@@ -36,6 +36,7 @@
 #endif
 
 #include <sys/param.h>
+#include <sys/endian.h>
 
 #define	NVME_PASSTHROUGH_CMD		_IOWR('n', 0, struct nvme_pt_command)
 #define	NVME_RESET_CONTROLLER		_IO('n', 1)
@@ -100,16 +101,21 @@
 #define NVME_CSTS_REG_SHST_SHIFT			(2)
 #define NVME_CSTS_REG_SHST_MASK				(0x3)
 
+#define NVME_CSTS_GET_SHST(csts)			(((csts) >> NVME_CSTS_REG_SHST_SHIFT) & NVME_CSTS_REG_SHST_MASK)
+
 #define NVME_AQA_REG_ASQS_SHIFT				(0)
 #define NVME_AQA_REG_ASQS_MASK				(0xFFF)
 #define NVME_AQA_REG_ACQS_SHIFT				(16)
 #define NVME_AQA_REG_ACQS_MASK				(0xFFF)
 
 /* Command field definitions */
+
 #define NVME_CMD_OPC_SHIFT				(0)
 #define NVME_CMD_OPC_MASK				(0xFF)
 #define NVME_CMD_FUSE_SHIFT				(8)
 #define NVME_CMD_FUSE_MASK				(0x3)
+
+#define NVME_CMD_SET_OPC(opc)				(((opc) & NVME_CMD_OPC_MASK) << NVME_CMD_OPC_SHIFT)
 
 #define NVME_STATUS_P_SHIFT				(0)
 #define NVME_STATUS_P_MASK				(0x1)
@@ -121,6 +127,12 @@
 #define NVME_STATUS_M_MASK				(0x1)
 #define NVME_STATUS_DNR_SHIFT				(15)
 #define NVME_STATUS_DNR_MASK				(0x1)
+
+#define NVME_STATUS_GET_P(st)				(((st) >> NVME_STATUS_P_SHIFT) & NVME_STATUS_P_MASK)
+#define NVME_STATUS_GET_SC(st)				(((st) >> NVME_STATUS_SC_SHIFT) & NVME_STATUS_SC_MASK)
+#define NVME_STATUS_GET_SCT(st)				(((st) >> NVME_STATUS_SCT_SHIFT) & NVME_STATUS_SCT_MASK)
+#define NVME_STATUS_GET_M(st)				(((st) >> NVME_STATUS_M_SHIFT) & NVME_STATUS_M_MASK)
+#define NVME_STATUS_GET_DNR(st)				(((st) >> NVME_STATUS_DNR_SHIFT) & NVME_STATUS_DNR_MASK)
 
 #define NVME_PWR_ST_MPS_SHIFT				(0)
 #define NVME_PWR_ST_MPS_MASK				(0x1)
@@ -221,153 +233,41 @@
 #define NVME_FIRMWARE_PAGE_AFI_SLOT_SHIFT		(0)
 #define NVME_FIRMWARE_PAGE_AFI_SLOT_MASK		(0x7)
 
-union cap_lo_register {
-	uint32_t	raw;
-	struct {
-		/** maximum queue entries supported */
-		uint32_t mqes		: 16;
-
-		/** contiguous queues required */
-		uint32_t cqr		: 1;
-
-		/** arbitration mechanism supported */
-		uint32_t ams		: 2;
-
-		uint32_t reserved1	: 5;
-
-		/** timeout */
-		uint32_t to		: 8;
-	} bits __packed;
-} __packed;
-
-_Static_assert(sizeof(union cap_lo_register) == 4, "bad size for cap_lo_register");
-
-union cap_hi_register {
-	uint32_t	raw;
-	struct {
-		/** doorbell stride */
-		uint32_t dstrd		: 4;
-
-		uint32_t reserved3	: 1;
-
-		/** command sets supported */
-		uint32_t css_nvm	: 1;
-
-		uint32_t css_reserved	: 3;
-		uint32_t reserved2	: 7;
-
-		/** memory page size minimum */
-		uint32_t mpsmin		: 4;
-
-		/** memory page size maximum */
-		uint32_t mpsmax		: 4;
-
-		uint32_t reserved1	: 8;
-	} bits __packed;
-} __packed;
-
-_Static_assert(sizeof(union cap_hi_register) == 4, "bad size of cap_hi_register");
-
-union cc_register {
-	uint32_t	raw;
-	struct {
-		/** enable */
-		uint32_t en		: 1;
-
-		uint32_t reserved1	: 3;
-
-		/** i/o command set selected */
-		uint32_t css		: 3;
-
-		/** memory page size */
-		uint32_t mps		: 4;
-
-		/** arbitration mechanism selected */
-		uint32_t ams		: 3;
-
-		/** shutdown notification */
-		uint32_t shn		: 2;
-
-		/** i/o submission queue entry size */
-		uint32_t iosqes		: 4;
-
-		/** i/o completion queue entry size */
-		uint32_t iocqes		: 4;
-
-		uint32_t reserved2	: 8;
-	} bits __packed;
-} __packed;
-
-_Static_assert(sizeof(union cc_register) == 4, "bad size for cc_register");
-
+/* CC register SHN field values */
 enum shn_value {
 	NVME_SHN_NORMAL		= 0x1,
 	NVME_SHN_ABRUPT		= 0x2,
 };
 
-union csts_register {
-	uint32_t	raw;
-	struct {
-		/** ready */
-		uint32_t rdy		: 1;
-
-		/** controller fatal status */
-		uint32_t cfs		: 1;
-
-		/** shutdown status */
-		uint32_t shst		: 2;
-
-		uint32_t reserved1	: 28;
-	} bits __packed;
-} __packed;
-
-_Static_assert(sizeof(union csts_register) == 4, "bad size for csts_register");
-
+/* CSTS register SHST field values */
 enum shst_value {
 	NVME_SHST_NORMAL	= 0x0,
 	NVME_SHST_OCCURRING	= 0x1,
 	NVME_SHST_COMPLETE	= 0x2,
 };
 
-union aqa_register {
-	uint32_t	raw;
-	struct {
-		/** admin submission queue size */
-		uint32_t asqs		: 12;
-
-		uint32_t reserved1	: 4;
-
-		/** admin completion queue size */
-		uint32_t acqs		: 12;
-
-		uint32_t reserved2	: 4;
-	} bits __packed;
-} __packed;
-
-_Static_assert(sizeof(union aqa_register) == 4, "bad size for aqa_resgister");
-
 struct nvme_registers
 {
 	/** controller capabilities */
-	union cap_lo_register	cap_lo;
-	union cap_hi_register	cap_hi;
+	uint32_t		cap_lo;
+	uint32_t		cap_hi;
 
 	uint32_t		vs;	/* version */
 	uint32_t		intms;	/* interrupt mask set */
 	uint32_t		intmc;	/* interrupt mask clear */
 
 	/** controller configuration */
-	union cc_register	cc;
+	uint32_t		cc;
 
 	uint32_t		reserved1;
 
 	/** controller status */
-	union csts_register	csts;
+	uint32_t		csts;
 
 	uint32_t		reserved2;
 
 	/** admin queue attributes */
-	union aqa_register	aqa;
+	uint32_t		aqa;
 
 	uint64_t		asq;	/* admin submission queue base addr */
 	uint64_t		acq;	/* admin completion queue base addr */
@@ -384,9 +284,7 @@ _Static_assert(sizeof(struct nvme_registers) == 0x1008, "bad size for nvme_regis
 struct nvme_command
 {
 	/* dword 0 */
-	uint16_t opc	:  8;	/* opcode */
-	uint16_t fuse	:  2;	/* fused operation */
-	uint16_t rsvd1	:  6;
+	uint16_t opc_fuse;	/* opcode, fused operation */
 	uint16_t cid;		/* command identifier */
 
 	/* dword 1 */
@@ -416,18 +314,6 @@ struct nvme_command
 
 _Static_assert(sizeof(struct nvme_command) == 16 * 4, "bad size for nvme_command");
 
-struct nvme_status {
-
-	uint16_t p	:  1;	/* phase tag */
-	uint16_t sc	:  8;	/* status code */
-	uint16_t sct	:  3;	/* status code type */
-	uint16_t rsvd2	:  2;
-	uint16_t m	:  1;	/* more */
-	uint16_t dnr	:  1;	/* do not retry */
-} __packed;
-
-_Static_assert(sizeof(struct nvme_status) == 2, "bad size for nvme_status");
-
 struct nvme_completion {
 
 	/* dword 0 */
@@ -442,7 +328,7 @@ struct nvme_completion {
 
 	/* dword 3 */
 	uint16_t		cid;	/* command identifier */
-	struct nvme_status	status;
+	uint16_t		status;
 } __packed;
 
 _Static_assert(sizeof(struct nvme_completion) == 4 * 4, "bad size for nvme_completion");
@@ -597,27 +483,22 @@ struct nvme_power_state {
 	/** Maximum Power */
 	uint16_t	mp;			/* Maximum Power */
 	uint8_t		ps_rsvd1;
-	uint8_t		mps      : 1;		/* Max Power Scale */
-	uint8_t		nops     : 1;		/* Non-Operational State */
-	uint8_t		ps_rsvd2 : 6;
+	uint8_t		mps_nops;		/* Max Power Scale, Non-Operational State */
+
 	uint32_t	enlat;			/* Entry Latency */
 	uint32_t	exlat;			/* Exit Latency */
-	uint8_t		rrt      : 5;		/* Relative Read Throughput */
-	uint8_t		ps_rsvd3 : 3;
-	uint8_t		rrl      : 5;		/* Relative Read Latency */
-	uint8_t		ps_rsvd4 : 3;
-	uint8_t		rwt      : 5;		/* Relative Write Throughput */
-	uint8_t		ps_rsvd5 : 3;
-	uint8_t		rwl      : 5;		/* Relative Write Latency */
-	uint8_t		ps_rsvd6 : 3;
+
+	uint8_t		rrt;			/* Relative Read Throughput */
+	uint8_t		rrl;			/* Relative Read Latency */
+	uint8_t		rwt;			/* Relative Write Throughput */
+	uint8_t		rwl;			/* Relative Write Latency */
+
 	uint16_t	idlp;			/* Idle Power */
-	uint8_t		ps_rsvd7 : 6;
-	uint8_t		ips      : 2;		/* Idle Power Scale */
+	uint8_t		ips;			/* Idle Power Scale */
 	uint8_t		ps_rsvd8;
+
 	uint16_t	actp;			/* Active Power */
-	uint8_t		apw      : 3;		/* Active Power Workload */
-	uint8_t		ps_rsvd9 : 3;
-	uint8_t		aps      : 2;		/* Active Power Scale */
+	uint8_t		apw_aps;		/* Active Power Workload, Active Power Scale */
 	uint8_t		ps_rsvd10[9];
 } __packed;
 
@@ -875,12 +756,7 @@ struct nvme_namespace_data {
 	/** number of lba formats */
 	uint8_t			nlbaf;
 
-	/** formatted lba size */
-	struct {
-		uint8_t		format    : 4;
-		uint8_t		extended  : 1;
-		uint8_t		reserved2 : 3;
-	} __packed flbas;
+	uint8_t			flbas;
 
 	/** metadata capabilities */
 	struct {
@@ -925,19 +801,7 @@ struct nvme_namespace_data {
 
 	uint8_t			reserved5[98];
 
-	/** lba format support */
-	struct {
-		/** metadata size */
-		uint32_t	ms	  : 16;
-
-		/** lba data size */
-		uint32_t	lbads	  : 8;
-
-		/** relative performance */
-		uint32_t	rp	  : 2;
-
-		uint32_t	reserved6 : 6;
-	} __packed lbaf[16];
+	uint32_t		lbaf[16];
 
 	uint8_t			reserved6[192];
 
@@ -980,7 +844,7 @@ struct nvme_error_information_entry {
 	uint64_t		error_count;
 	uint16_t		sqid;
 	uint16_t		cid;
-	struct nvme_status	status;
+	uint16_t		status;
 	uint16_t		error_location;
 	uint64_t		lba;
 	uint32_t		nsid;
@@ -1149,7 +1013,7 @@ struct nvme_pt_command {
 };
 
 #define nvme_completion_is_error(cpl)					\
-	((cpl)->status.sc != 0 || (cpl)->status.sct != 0)
+	(NVME_STATUS_GET_SC(le16toh((cpl)->status)) != 0 || NVME_STATUS_GET_SCT(le16toh((cpl)->status)) != 0)
 
 void	nvme_strvis(uint8_t *dst, const uint8_t *src, int dstlen, int srclen);
 
@@ -1249,19 +1113,19 @@ static inline
 void	nvme_ns_flush_cmd(struct nvme_command *cmd, uint32_t nsid)
 {
 
-	cmd->opc = NVME_OPC_FLUSH;
-	cmd->nsid = nsid;
+	cmd->opc_fuse = htole16(NVME_CMD_SET_OPC(NVME_OPC_FLUSH));
+	cmd->nsid = htole32(nsid);
 }
 
 static inline
 void	nvme_ns_rw_cmd(struct nvme_command *cmd, uint32_t rwcmd, uint32_t nsid,
     uint64_t lba, uint32_t count)
 {
-	cmd->opc = rwcmd;
-	cmd->nsid = nsid;
-	cmd->cdw10 = lba & 0xffffffffu;
-	cmd->cdw11 = lba >> 32;
-	cmd->cdw12 = count-1;
+	cmd->opc_fuse = htole16(NVME_CMD_SET_OPC(rwcmd));
+	cmd->nsid = htole32(nsid);
+	cmd->cdw10 = htole32(lba & 0xffffffffu);
+	cmd->cdw11 = htole32(lba >> 32);
+	cmd->cdw12 = htole32(count-1);
 }
 
 static inline
@@ -1282,10 +1146,10 @@ static inline
 void	nvme_ns_trim_cmd(struct nvme_command *cmd, uint32_t nsid,
     uint32_t num_ranges)
 {
-	cmd->opc = NVME_OPC_DATASET_MANAGEMENT;
-	cmd->nsid = nsid;
-	cmd->cdw10 = num_ranges - 1;
-	cmd->cdw11 = NVME_DSM_ATTR_DEALLOCATE;
+	cmd->opc_fuse = htole16(NVME_CMD_SET_OPC(NVME_OPC_DATASET_MANAGEMENT));
+	cmd->nsid = htole32(nsid);
+	cmd->cdw10 = htole32(num_ranges - 1);
+	cmd->cdw11 = htole32(NVME_DSM_ATTR_DEALLOCATE);
 }
 
 extern int nvme_use_nvd;
