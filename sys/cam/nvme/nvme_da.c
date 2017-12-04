@@ -689,6 +689,7 @@ ndaregister(struct cam_periph *periph, void *arg)
 	const struct nvme_namespace_data *nsd;
 	const struct nvme_controller_data *cd;
 	char   announce_buf[80];
+	uint8_t flbas_fmt, lbads;
 	u_int maxio;
 	int quirks;
 
@@ -760,7 +761,11 @@ ndaregister(struct cam_periph *periph, void *arg)
 	else if (maxio > MAXPHYS)
 		maxio = MAXPHYS;	/* for safety */
 	disk->d_maxsize = maxio;
-	disk->d_sectorsize = 1 << nsd->lbaf[nsd->flbas.format].lbads;
+	flbas_fmt = (nsd->flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
+		NVME_NS_DATA_FLBAS_FORMAT_MASK;
+	lbads = (le32toh(nsd->lbaf[flbas_fmt]) >> NVME_NS_DATA_LBAF_LBADS_SHIFT) &
+		NVME_NS_DATA_LBAF_LBADS_MASK;
+	disk->d_sectorsize = 1 << lbads;
 	disk->d_mediasize = (off_t)(disk->d_sectorsize * nsd->nsze);
 	disk->d_delmaxsize = disk->d_mediasize;
 	disk->d_flags = DISKFLAG_DIRECT_COMPLETION;

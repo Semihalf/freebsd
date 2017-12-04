@@ -331,18 +331,17 @@ struct nvme_controller {
 	bus_space_read_4((sc)->bus_tag, (sc)->bus_handle,		       \
 	    nvme_mmio_offsetof(reg))
 
+#define nvme_mmio_read_8(sc, reg)					       \
+	bus_space_read_8((sc)->bus_tag, (sc)->bus_handle,		       \
+	    nvme_mmio_offsetof(reg))
+
 #define nvme_mmio_write_4(sc, reg, val)					       \
 	bus_space_write_4((sc)->bus_tag, (sc)->bus_handle,		       \
 	    nvme_mmio_offsetof(reg), val)
 
-#define nvme_mmio_write_8(sc, reg, val) \
-	do {								       \
-		bus_space_write_4((sc)->bus_tag, (sc)->bus_handle,	       \
-		    nvme_mmio_offsetof(reg), val & 0xFFFFFFFF); 	       \
-		bus_space_write_4((sc)->bus_tag, (sc)->bus_handle,	       \
-		    nvme_mmio_offsetof(reg)+4,				       \
-		    (val & 0xFFFFFFFF00000000UL) >> 32);		       \
-	} while (0);
+#define nvme_mmio_write_8(sc, reg, val)					       \
+	bus_space_write_8((sc)->bus_tag, (sc)->bus_handle,		       \
+	    nvme_mmio_offsetof(reg), val)
 
 #if __FreeBSD_version < 800054
 #define wmb()	__asm volatile("sfence" ::: "memory")

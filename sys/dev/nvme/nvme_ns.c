@@ -170,7 +170,14 @@ nvme_ns_get_max_io_xfer_size(struct nvme_namespace *ns)
 uint32_t
 nvme_ns_get_sector_size(struct nvme_namespace *ns)
 {
-	return (1 << ns->data.lbaf[ns->data.flbas.format].lbads);
+	uint8_t flbas_fmt, lbads;
+
+	flbas_fmt = (ns->data.flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
+		NVME_NS_DATA_FLBAS_FORMAT_MASK;
+	lbads = (le32toh(ns->data.lbaf[flbas_fmt]) >> NVME_NS_DATA_LBAF_LBADS_SHIFT) &
+		NVME_NS_DATA_LBAF_LBADS_MASK;
+
+	return (1 << lbads);
 }
 
 uint64_t
@@ -263,8 +270,10 @@ nvme_bio_child_inbed(struct bio *parent, int bio_error)
 	inbed = atomic_fetchadd_int(&parent->bio_inbed, 1) + 1;
 	if (inbed == children) {
 		bzero(&parent_cpl, sizeof(parent_cpl));
-		if (parent->bio_flags & BIO_ERROR)
-			parent_cpl.status.sc = NVME_SC_DATA_TRANSFER_ERROR;
+		if (parent->bio_flags & BIO_ERROR) {
+			parent_cpl.status &= ~(NVME_STATUS_SC_MASK << NVME_STATUS_SC_SHIFT);
+			parent_cpl.status |= (NVME_SC_DATA_TRANSFER_ERROR) << NVME_STATUS_SC_SHIFT;
+		}
 		nvme_ns_bio_done(parent, &parent_cpl);
 	}
 }
@@ -481,6 +490,7 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 {
 	struct nvme_completion_poll_status	status;
 	int					unit;
+	uint8_t					flbas_fmt;
 
 	ns->ctrlr = ctrlr;
 	ns->id = id;
@@ -511,6 +521,11 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 		return (ENXIO);
 	}
 
+	/* TODO: invert all fields of Identify Namespace Data */
+	ns->data.nsze = le64toh(ns->data.nsze);
+	ns->data.ncap = le64toh(ns->data.ncap);
+	ns->data.nuse = le64toh(ns->data.nuse);
+
 	/*
 	 * If the size of is zero, chances are this isn't a valid
 	 * namespace (eg one that's not been configured yet). The
@@ -520,13 +535,15 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 	if (ns->data.nsze == 0)
 		return (ENXIO);
 
+	flbas_fmt = (ns->data.flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
+		NVME_NS_DATA_FLBAS_FORMAT_MASK;
 	/*
 	 * Note: format is a 0-based value, so > is appropriate here,
 	 *  not >=.
 	 */
-	if (ns->data.flbas.format > ns->data.nlbaf) {
+	if (flbas_fmt > ns->data.nlbaf) {
 		printf("lba format %d exceeds number supported (%d)\n",
-		    ns->data.flbas.format, ns->data.nlbaf+1);
+		    flbas_fmt, ns->data.nlbaf + 1);
 		return (ENXIO);
 	}
 
