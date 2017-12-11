@@ -65,20 +65,6 @@ cpudep_ap_early_bootstrap(void)
 	register_t reg;
 #endif
 
-	/* Find apropriate pcpu structure */
-	STAILQ_FOREACH(tmp_pc, &cpuhead, pc_allcpu) {
-		if (tmp_pc->pc_hwref == mfspr(SPR_PIR)) {
-			pc = tmp_pc;
-			break;
-		}
-	}
-
-	KASSERT(pc != NULL, ("cpudep_ap_early_bootstrap: can't find pcpu "
-	    "structure for cpu"));
-
-	__asm __volatile("mtsprg 0, %0" :: "r"(pc));
-	powerpc_sync();
-
 	switch (mfpvr() >> 16) {
 	case IBM970:
 	case IBM970FX:
@@ -98,7 +84,31 @@ cpudep_ap_early_bootstrap(void)
 #endif
 		powerpc_sync();
 		break;
+	case IBMPOWER8:
+	case IBMPOWER8E:
+		isync();
+		/* Direct interrupts to SRR instead of HSRR and reset LPCR otherwise */
+		mtspr(SPR_LPID, 0);
+		isync();
+
+		mtspr(SPR_LPCR, LPCR_LPES);
+		isync();
+		break;
 	}
+
+	/* Find apropriate pcpu structure */
+	STAILQ_FOREACH(tmp_pc, &cpuhead, pc_allcpu) {
+		if (tmp_pc->pc_hwref == mfspr(SPR_PIR)) {
+			pc = tmp_pc;
+			break;
+		}
+	}
+
+	KASSERT(pc != NULL, ("cpudep_ap_early_bootstrap: can't find pcpu "
+	    "structure for cpu"));
+
+	__asm __volatile("mtsprg 0, %0" :: "r"(pc));
+	powerpc_sync();
 }
 
 uintptr_t
