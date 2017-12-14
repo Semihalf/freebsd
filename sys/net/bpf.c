@@ -1260,6 +1260,9 @@ bpfioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 {
 	struct bpf_d *d;
 	int error;
+#ifdef COMPAT_FREEBSD32
+	u_long cmd64;
+#endif
 
 	error = devfs_get_cdevpriv((void **)&d);
 	if (error != 0)
@@ -1314,13 +1317,23 @@ bpfioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 	 * If we see a 32-bit compat ioctl, mark the stream as 32-bit so
 	 * that it will get 32-bit packet headers.
 	 */
+	cmd64 = cmd;
 	switch (cmd) {
 	case BIOCSETF32:
+		cmd64 = BIOCSETF;
 	case BIOCSETFNR32:
+		cmd64 = BIOCSETFNR;
 	case BIOCSETWF32:
+		cmd64 = BIOCSETWF;
 	case BIOCGDLTLIST32:
+		cmd64 = BIOCGDLTLIST;
 	case BIOCGRTIMEOUT32:
+		cmd64 = BIOCGRTIMEOUT;
 	case BIOCSRTIMEOUT32:
+		cmd64 = BIOCSRTIMEOUT;
+	}
+
+	if (cmd64 != cmd) {
 		BPFD_LOCK(d);
 		d->bd_compat32 = 1;
 		BPFD_UNLOCK(d);
