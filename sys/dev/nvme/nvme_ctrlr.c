@@ -427,6 +427,7 @@ nvme_ctrlr_identify(struct nvme_controller *ctrlr)
 	    nvme_completion_poll_cb, &status);
 	while (!atomic_load_acq_int(&status.done))
 		pause("nvme", 1);
+	rmb();
 	if (nvme_completion_is_error(&status.cpl)) {
 		nvme_printf(ctrlr, "nvme_identify_controller failed!\n");
 		return (ENXIO);
@@ -461,6 +462,7 @@ nvme_ctrlr_set_num_qpairs(struct nvme_controller *ctrlr)
 	    nvme_completion_poll_cb, &status);
 	while (!atomic_load_acq_int(&status.done))
 		pause("nvme", 1);
+	rmb();
 	if (nvme_completion_is_error(&status.cpl)) {
 		nvme_printf(ctrlr, "nvme_ctrlr_set_num_qpairs failed!\n");
 		return (ENXIO);
@@ -500,6 +502,7 @@ nvme_ctrlr_create_qpairs(struct nvme_controller *ctrlr)
 		    nvme_completion_poll_cb, &status);
 		while (!atomic_load_acq_int(&status.done))
 			pause("nvme", 1);
+		rmb();
 		if (nvme_completion_is_error(&status.cpl)) {
 			nvme_printf(ctrlr, "nvme_create_io_cq failed!\n");
 			return (ENXIO);
@@ -510,6 +513,7 @@ nvme_ctrlr_create_qpairs(struct nvme_controller *ctrlr)
 		    nvme_completion_poll_cb, &status);
 		while (!atomic_load_acq_int(&status.done))
 			pause("nvme", 1);
+		rmb();
 		if (nvme_completion_is_error(&status.cpl)) {
 			nvme_printf(ctrlr, "nvme_create_io_sq failed!\n");
 			return (ENXIO);
@@ -723,6 +727,7 @@ nvme_ctrlr_configure_aer(struct nvme_controller *ctrlr)
 	    0, NULL, 0, nvme_completion_poll_cb, &status);
 	while (!atomic_load_acq_int(&status.done))
 		pause("nvme", 1);
+	rmb();
 	if (nvme_completion_is_error(&status.cpl) ||
 	    (le32toh(status.cpl.cdw0) & 0xFFFF) == 0xFFFF ||
 	    (le32toh(status.cpl.cdw0) & 0xFFFF) == 0x0000) {
