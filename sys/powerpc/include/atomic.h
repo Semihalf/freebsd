@@ -500,27 +500,84 @@ atomic_readandclear_long(volatile u_long *addr)
 #define	atomic_readandclear_ptr		atomic_readandclear_int
 #endif
 
-/*
- * We assume that a = b will do atomic loads and stores.
- */
-#define	ATOMIC_STORE_LOAD(TYPE)					\
-static __inline u_##TYPE					\
-atomic_load_acq_##TYPE(volatile u_##TYPE *p)			\
-{								\
-	u_##TYPE v;						\
-								\
-	v = *p;							\
-	mb();							\
-	return (v);						\
-}								\
-								\
-static __inline void						\
-atomic_store_rel_##TYPE(volatile u_##TYPE *p, u_##TYPE v)	\
-{								\
-								\
+#define __atomic_load_acq_int(p, v)				\
+	__asm __volatile(					\
+		"1:	lwarx	%0, 0, %2\n"			\
+		"	stwcx.	%0, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (v), "=m" (*p)				\
+		: "r" (p), "m" (*p)				\
+		: "cr0", "memory");				\
+	mb()							\
+
+#define __atomic_store_rel_int(p, v, t)				\
 	powerpc_lwsync();					\
-	*p = v;							\
-}
+	__asm __volatile(					\
+		"1:	lwarx	%0, 0, %2\n"			\
+		"	stwcx.	%3, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (t), "=m" (*p)				\
+		: "r" (p), "r" (v), "m" (*p)			\
+		: "cr0", "memory")				\
+
+#ifdef __powerpc64__
+#define __atomic_load_acq_long(p, v)				\
+	__asm __volatile(					\
+		"1:	ldarx	%0, 0, %2\n"			\
+		"	stdcx.	%0, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (v), "=m" (*p)				\
+		: "r" (p), "m" (*p)				\
+		: "cr0", "memory");				\
+	mb()							\
+
+#define __atomic_store_rel_long(p, v, t)			\
+	powerpc_lwsync();					\
+	__asm __volatile(					\
+		"1:	ldarx	%0, 0, %2\n"			\
+		"	stdcx.	%3, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (t), "=m" (*p)				\
+		: "r" (p), "r" (v), "m" (*p)			\
+		: "cr0", "memory")				\
+
+#else /* __powerpc64__ */
+#define __atomic_load_acq_long(p, v)				\
+	__asm __volatile(					\
+		"1:	lwarx	%0, 0, %2\n"			\
+		"	stwcx.	%0, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (v), "=m" (*p)				\
+		: "r" (p), "m" (*p)				\
+		: "cr0", "memory");				\
+	mb()							\
+
+#define __atomic_store_rel_long(p, v, t)			\
+	powerpc_lwsync();					\
+	__asm __volatile(					\
+		"1:	lwarx	%0, 0, %2\n"			\
+		"	stwcx.	%3, 0, %2\n"			\
+		"	bne-	1b\n"				\
+		: "=&r" (t), "=m" (*p)				\
+		: "r" (p), "r" (v), "m" (*p)			\
+		: "cr0", "memory")				\
+
+#endif /* __powerpc64__ */
+
+#define	ATOMIC_STORE_LOAD(TYPE)					\
+    static inline u_##TYPE					\
+    atomic_load_acq_##TYPE(volatile u_##TYPE *p) {		\
+	u_##TYPE v;						\
+	__atomic_load_acq_##TYPE(p, v);				\
+	return (v);						\
+    }								\
+								\
+    static inline void						\
+    atomic_store_rel_##TYPE(volatile u_##TYPE *p, u_##TYPE v) {	\
+	u_##TYPE t;						\
+	__atomic_store_rel_##TYPE(p, v, t);			\
+    }								\
+/* ATOMIC_STORE_LOAD */
 
 ATOMIC_STORE_LOAD(int)
 
