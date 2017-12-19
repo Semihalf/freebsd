@@ -433,13 +433,6 @@ nvme_ctrlr_identify(struct nvme_controller *ctrlr)
 		return (ENXIO);
 	}
 
-	/* TODO: invert all fields of Identify Controller Data */
-	ctrlr->cdata.ctrlr_id = le16toh(ctrlr->cdata.ctrlr_id);
-	ctrlr->cdata.ver = le32toh(ctrlr->cdata.ver);
-	ctrlr->cdata.maxcmd = le16toh(ctrlr->cdata.maxcmd);
-	ctrlr->cdata.nn = le32toh(ctrlr->cdata.nn);
-
-
 	/*
 	 * Use MDTS to ensure our default max_xfer_size doesn't exceed what the
 	 *  controller supports.
@@ -529,7 +522,7 @@ nvme_ctrlr_construct_namespaces(struct nvme_controller *ctrlr)
 	struct nvme_namespace	*ns;
 	uint32_t 		i;
 
-	for (i = 0; i < min(ctrlr->cdata.nn, NVME_MAX_NAMESPACES); i++) {
+	for (i = 0; i < min(le32toh(ctrlr->cdata.nn), NVME_MAX_NAMESPACES); i++) {
 		ns = &ctrlr->ns[i];
 		nvme_ns_construct(ns, i+1, ctrlr);
 	}
@@ -579,27 +572,23 @@ nvme_ctrlr_get_log_page_size(struct nvme_controller *ctrlr, uint8_t page_id)
 
 static void
 nvme_ctrlr_log_critical_warnings(struct nvme_controller *ctrlr,
-    union nvme_critical_warning_state state)
+    uint8_t state)
 {
 
-	if (state.bits.available_spare == 1)
+	if (state & NVME_CRIT_WARN_ST_AVAILABLE_SPARE)
 		nvme_printf(ctrlr, "available spare space below threshold\n");
 
-	if (state.bits.temperature == 1)
+	if (state & NVME_CRIT_WARN_ST_TEMPERATURE)
 		nvme_printf(ctrlr, "temperature above threshold\n");
 
-	if (state.bits.device_reliability == 1)
+	if (state & NVME_CRIT_WARN_ST_DEVICE_RELIABILITY)
 		nvme_printf(ctrlr, "device reliability degraded\n");
 
-	if (state.bits.read_only == 1)
+	if (state & NVME_CRIT_WARN_ST_READ_ONLY)
 		nvme_printf(ctrlr, "media placed in read only mode\n");
 
-	if (state.bits.volatile_memory_backup == 1)
+	if (state & NVME_CRIT_WARN_ST_VOLATILE_MEMORY_BACKUP)
 		nvme_printf(ctrlr, "volatile memory backup device failed\n");
-
-	if (state.bits.reserved != 0)
-		nvme_printf(ctrlr,
-		    "unknown critical warning(s): state = 0x%02x\n", state.raw);
 }
 
 static void
@@ -629,8 +618,8 @@ nvme_ctrlr_async_event_log_page_cb(void *arg, const struct nvme_completion *cpl)
 			 *  config so that we do not receive repeated
 			 *  notifications for the same event.
 			 */
-			aer->ctrlr->async_event_config.raw &=
-			    ~health_info->critical_warning.raw;
+			aer->ctrlr->async_event_config &=
+			    ~health_info->critical_warning;
 			nvme_ctrlr_cmd_set_async_event_config(aer->ctrlr,
 			    aer->ctrlr->async_event_config, NULL, NULL);
 		}
@@ -719,8 +708,8 @@ nvme_ctrlr_configure_aer(struct nvme_controller *ctrlr)
 	struct nvme_async_event_request		*aer;
 	uint32_t				i;
 
-	ctrlr->async_event_config.raw = 0xFF;
-	ctrlr->async_event_config.bits.reserved = 0;
+	ctrlr->async_event_config = 0xFF;
+	ctrlr->async_event_config &= ~NVME_CRIT_WARN_ST_RESERVED_MASK;
 
 	status.done = FALSE;
 	nvme_ctrlr_cmd_get_feature(ctrlr, NVME_FEAT_TEMPERATURE_THRESHOLD,
@@ -732,7 +721,7 @@ nvme_ctrlr_configure_aer(struct nvme_controller *ctrlr)
 	    (le32toh(status.cpl.cdw0) & 0xFFFF) == 0xFFFF ||
 	    (le32toh(status.cpl.cdw0) & 0xFFFF) == 0x0000) {
 		nvme_printf(ctrlr, "temperature threshold not supported\n");
-		ctrlr->async_event_config.bits.temperature = 0;
+		ctrlr->async_event_config &= ~NVME_CRIT_WARN_ST_TEMPERATURE;
 	}
 
 	nvme_ctrlr_cmd_set_async_event_config(ctrlr,

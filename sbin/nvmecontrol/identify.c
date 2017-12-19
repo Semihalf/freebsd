@@ -47,11 +47,23 @@ print_controller(struct nvme_controller_data *cdata)
 {
 	uint8_t str[128];
 	char cbuf[UINT128_DIG + 1];
+	uint16_t oncs;
+	uint8_t compare, write_unc, dsm, vwc_present;
+
+	oncs = le16toh(cdata->oncs);
+	compare = (oncs >> NVME_CTRLR_DATA_ONCS_COMPARE_SHIFT) &
+		NVME_CTRLR_DATA_ONCS_COMPARE_MASK;
+	write_unc = (oncs >> NVME_CTRLR_DATA_ONCS_WRITE_UNC_SHIFT) &
+		NVME_CTRLR_DATA_ONCS_WRITE_UNC_MASK;
+	dsm = (oncs >> NVME_CTRLR_DATA_ONCS_DSM_SHIFT) &
+		NVME_CTRLR_DATA_ONCS_DSM_MASK;
+	vwc_present = (cdata->vwc >> NVME_CTRLR_DATA_VWC_PRESENT_SHIFT) &
+		NVME_CTRLR_DATA_VWC_PRESENT_MASK;
 
 	printf("Controller Capabilities/Features\n");
 	printf("================================\n");
-	printf("Vendor ID:                  %04x\n", cdata->vid);
-	printf("Subsystem Vendor ID:        %04x\n", cdata->ssvid);
+	printf("Vendor ID:                  %04x\n", le16toh(cdata->vid));
+	printf("Subsystem Vendor ID:        %04x\n", le16toh(cdata->ssvid));
 	nvme_strvis(str, cdata->sn, sizeof(str), NVME_SERIAL_NUMBER_LENGTH);
 	printf("Serial Number:              %s\n", str);
 	nvme_strvis(str, cdata->mn, sizeof(str), NVME_MODEL_NUMBER_LENGTH);
@@ -68,7 +80,7 @@ print_controller(struct nvme_controller_data *cdata)
 		printf("Unlimited\n");
 	else
 		printf("%d\n", PAGE_SIZE * (1 << cdata->mdts));
-	printf("Controller ID:              0x%02x\n", cdata->ctrlr_id);
+	printf("Controller ID:              0x%02x\n", le16toh(cdata->ctrlr_id));
 	printf("\n");
 
 	printf("Admin Command Set Attributes\n");
@@ -107,15 +119,15 @@ print_controller(struct nvme_controller_data *cdata)
 	printf("Completion Queue Entry Size\n");
 	printf("  Max:                       %d\n", 1 << cdata->cqes.max);
 	printf("  Min:                       %d\n", 1 << cdata->cqes.min);
-	printf("Number of Namespaces:        %d\n", cdata->nn);
+	printf("Number of Namespaces:        %d\n", le32toh(cdata->nn));
 	printf("Compare Command:             %s\n",
-		cdata->oncs.compare ? "Supported" : "Not Supported");
+		compare ? "Supported" : "Not Supported");
 	printf("Write Uncorrectable Command: %s\n",
-		cdata->oncs.write_unc ? "Supported" : "Not Supported");
+		write_unc ? "Supported" : "Not Supported");
 	printf("Dataset Management Command:  %s\n",
-		cdata->oncs.dsm ? "Supported" : "Not Supported");
+		dsm ? "Supported" : "Not Supported");
 	printf("Volatile Write Cache:        %s\n",
-		cdata->vwc.present ? "Present" : "Not Present");
+		vwc_present ? "Present" : "Not Present");
 
 	if (cdata->oacs.nsmgmt) {
 		printf("\n");
@@ -134,14 +146,14 @@ print_namespace(struct nvme_namespace_data *nsdata)
 	uint32_t	i;
 
 	printf("Size (in LBAs):              %lld (%lldM)\n",
-		(long long)nsdata->nsze,
-		(long long)nsdata->nsze / 1024 / 1024);
+		(long long)le64toh(nsdata->nsze),
+		(long long)le64toh(nsdata->nsze) / 1024 / 1024);
 	printf("Capacity (in LBAs):          %lld (%lldM)\n",
-		(long long)nsdata->ncap,
-		(long long)nsdata->ncap / 1024 / 1024);
+		(long long)le64toh(nsdata->ncap),
+		(long long)le64toh(nsdata->ncap) / 1024 / 1024);
 	printf("Utilization (in LBAs):       %lld (%lldM)\n",
-		(long long)nsdata->nuse,
-		(long long)nsdata->nuse / 1024 / 1024);
+		(long long)le64toh(nsdata->nuse),
+		(long long)le64toh(nsdata->nuse) / 1024 / 1024);
 	printf("Thin Provisioning:           %s\n",
 		nsdata->nsfeat.thin_prov ? "Supported" : "Not Supported");
 	printf("Number of LBA Formats:       %d\n", nsdata->nlbaf+1);

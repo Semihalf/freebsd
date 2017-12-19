@@ -360,9 +360,9 @@ nvme_notify(struct nvme_consumer *cons,
 		 */
 		return;
 	}
-	for (ns_idx = 0; ns_idx < min(ctrlr->cdata.nn, NVME_MAX_NAMESPACES); ns_idx++) {
+	for (ns_idx = 0; ns_idx < min(le32toh(ctrlr->cdata.nn), NVME_MAX_NAMESPACES); ns_idx++) {
 		ns = &ctrlr->ns[ns_idx];
-		if (ns->data.nsze == 0)
+		if (le64toh(ns->data.nsze) == 0)
 			continue;
 		if (cons->ns_fn != NULL)
 			ns->cons_cookie[cons->id] =

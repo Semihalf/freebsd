@@ -239,6 +239,10 @@ print_log_firmware(const struct nvme_controller_data *cdata __unused, void *buf,
 	int				i, slots;
 	const char			*status;
 	struct nvme_firmware_page	*fw = buf;
+	uint8_t				afi_slot;
+
+	afi_slot = fw->afi >> NVME_FIRMWARE_PAGE_AFI_SLOT_SHIFT;
+	afi_slot &= NVME_FIRMWARE_PAGE_AFI_SLOT_MASK;
 
 	printf("Firmware Slot Log\n");
 	printf("=================\n");
@@ -250,7 +254,7 @@ print_log_firmware(const struct nvme_controller_data *cdata __unused, void *buf,
 
 	for (i = 0; i < slots; i++) {
 		printf("Slot %d: ", i + 1);
-		if (fw->afi.slot == i + 1)
+		if (afi_slot == i + 1)
 			status = "  Active";
 		else
 			status = "Inactive";

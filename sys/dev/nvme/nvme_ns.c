@@ -185,7 +185,7 @@ nvme_ns_get_sector_size(struct nvme_namespace *ns)
 uint64_t
 nvme_ns_get_num_sectors(struct nvme_namespace *ns)
 {
-	return (ns->data.nsze);
+	return (le64toh(ns->data.nsze));
 }
 
 uint64_t
@@ -492,7 +492,10 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 {
 	struct nvme_completion_poll_status	status;
 	int					unit;
+	uint16_t				oncs;
+	uint8_t					dsm;
 	uint8_t					flbas_fmt;
+	uint8_t					vwc_present;
 
 	ns->ctrlr = ctrlr;
 	ns->id = id;
@@ -523,18 +526,13 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 		return (ENXIO);
 	}
 
-	/* TODO: invert all fields of Identify Namespace Data */
-	ns->data.nsze = le64toh(ns->data.nsze);
-	ns->data.ncap = le64toh(ns->data.ncap);
-	ns->data.nuse = le64toh(ns->data.nuse);
-
 	/*
 	 * If the size of is zero, chances are this isn't a valid
 	 * namespace (eg one that's not been configured yet). The
 	 * standard says the entire id will be zeros, so this is a
 	 * cheap way to test for that.
 	 */
-	if (ns->data.nsze == 0)
+	if (le64toh(ns->data.nsze) == 0)
 		return (ENXIO);
 
 	flbas_fmt = (ns->data.flbas >> NVME_NS_DATA_FLBAS_FORMAT_SHIFT) &
@@ -549,10 +547,14 @@ nvme_ns_construct(struct nvme_namespace *ns, uint32_t id,
 		return (ENXIO);
 	}
 
-	if (ctrlr->cdata.oncs.dsm)
+	oncs = le16toh(ctrlr->cdata.oncs);
+	dsm = (oncs >> NVME_CTRLR_DATA_ONCS_DSM_SHIFT) & NVME_CTRLR_DATA_ONCS_DSM_MASK;
+	if (dsm)
 		ns->flags |= NVME_NS_DEALLOCATE_SUPPORTED;
 
-	if (ctrlr->cdata.vwc.present)
+	vwc_present = (ctrlr->cdata.vwc >> NVME_CTRLR_DATA_VWC_PRESENT_SHIFT) &
+		NVME_CTRLR_DATA_VWC_PRESENT_MASK;
+	if (vwc_present)
 		ns->flags |= NVME_NS_FLUSH_SUPPORTED;
 
 	/*

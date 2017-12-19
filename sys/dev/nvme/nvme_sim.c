@@ -197,7 +197,7 @@ nvme_sim_action(struct cam_sim *sim, union ccb *ccb)
 		cpi->hba_misc =  PIM_UNMAPPED /* | PIM_NOSCAN */;
 		cpi->hba_eng_cnt = 0;
 		cpi->max_target = 0;
-		cpi->max_lun = ctrlr->cdata.nn;
+		cpi->max_lun = le32toh(ctrlr->cdata.nn);
 		cpi->maxio = nvme_ns_get_max_io_xfer_size(ns);
 		cpi->initiator_id = 0;
 		cpi->bus_id = cam_sim_bus(sim);

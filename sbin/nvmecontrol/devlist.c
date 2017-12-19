@@ -97,13 +97,13 @@ devlist(int argc, char *argv[])
 		nvme_strvis(mn, cdata.mn, sizeof(mn), NVME_MODEL_NUMBER_LENGTH);
 		printf("%6s: %s\n", name, mn);
 
-		for (i = 0; i < cdata.nn; i++) {
+		for (i = 0; i < le32toh(cdata.nn); i++) {
 			sprintf(name, "%s%d%s%d", NVME_CTRLR_PREFIX, ctrlr,
 			    NVME_NS_PREFIX, i+1);
 			read_namespace_data(fd, i+1, &nsdata);
 			printf("  %10s (%lldMB)\n",
 				name,
-				nsdata.nsze *
+				le64toh(nsdata.nsze) *
 				(long long)ns_get_sector_size(&nsdata) /
 				1024 / 1024);
 		}

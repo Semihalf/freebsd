@@ -153,83 +153,133 @@
 #define NVME_PWR_ST_APS_SHIFT				(6)
 #define NVME_PWR_ST_APS_MASK				(0x3)
 
+/** OACS - optional admin command support */
+/* supports security send/receive commands */
 #define NVME_CTRLR_DATA_OACS_SECURITY_SHIFT		(0)
 #define NVME_CTRLR_DATA_OACS_SECURITY_MASK		(0x1)
+/* supports format nvm command */
 #define NVME_CTRLR_DATA_OACS_FORMAT_SHIFT		(1)
 #define NVME_CTRLR_DATA_OACS_FORMAT_MASK		(0x1)
+/* supports firmware activate/download commands */
 #define NVME_CTRLR_DATA_OACS_FIRMWARE_SHIFT		(2)
 #define NVME_CTRLR_DATA_OACS_FIRMWARE_MASK		(0x1)
+/* supports namespace management commands */
 #define NVME_CTRLR_DATA_OACS_NSMGMT_SHIFT		(3)
 #define NVME_CTRLR_DATA_OACS_NSMGMT_MASK		(0x1)
+
+/** firmware updates */
+/* first slot is read-only */
 #define NVME_CTRLR_DATA_FRMW_SLOT1_RO_SHIFT		(0)
 #define NVME_CTRLR_DATA_FRMW_SLOT1_RO_MASK		(0x1)
+/* number of firmware slots */
 #define NVME_CTRLR_DATA_FRMW_NUM_SLOTS_SHIFT		(1)
 #define NVME_CTRLR_DATA_FRMW_NUM_SLOTS_MASK		(0x7)
+
+/** log page attributes */
+/* per namespace smart/health log page */
 #define NVME_CTRLR_DATA_LPA_NS_SMART_SHIFT		(0)
 #define NVME_CTRLR_DATA_LPA_NS_SMART_MASK		(0x1)
+
+/** AVSCC - admin vendor specific command configuration */
+/* admin vendor specific commands use spec format */
 #define NVME_CTRLR_DATA_AVSCC_SPEC_FORMAT_SHIFT		(0)
 #define NVME_CTRLR_DATA_AVSCC_SPEC_FORMAT_MASK		(0x1)
+
+/** Autonomous Power State Transition Attributes */
+/* Autonomous Power State Transitions supported */
 #define NVME_CTRLR_DATA_APSTA_APST_SUPP_SHIFT		(0)
 #define NVME_CTRLR_DATA_APSTA_APST_SUPP_MASK		(0x1)
+
+/** submission queue entry size */
 #define NVME_CTRLR_DATA_SQES_MIN_SHIFT			(0)
 #define NVME_CTRLR_DATA_SQES_MIN_MASK			(0xF)
 #define NVME_CTRLR_DATA_SQES_MAX_SHIFT			(4)
 #define NVME_CTRLR_DATA_SQES_MAX_MASK			(0xF)
+
+/** completion queue entry size */
 #define NVME_CTRLR_DATA_CQES_MIN_SHIFT			(0)
 #define NVME_CTRLR_DATA_CQES_MIN_MASK			(0xF)
 #define NVME_CTRLR_DATA_CQES_MAX_SHIFT			(4)
 #define NVME_CTRLR_DATA_CQES_MAX_MASK			(0xF)
+
+/** optional nvm command support */
 #define NVME_CTRLR_DATA_ONCS_COMPARE_SHIFT		(0)
 #define NVME_CTRLR_DATA_ONCS_COMPARE_MASK		(0x1)
 #define NVME_CTRLR_DATA_ONCS_WRITE_UNC_SHIFT		(1)
 #define NVME_CTRLR_DATA_ONCS_WRITE_UNC_MASK		(0x1)
 #define NVME_CTRLR_DATA_ONCS_DSM_SHIFT			(2)
 #define NVME_CTRLR_DATA_ONCS_DSM_MASK			(0x1)
+
+/** volatile write cache */
 #define NVME_CTRLR_DATA_VWC_PRESENT_SHIFT		(0)
 #define NVME_CTRLR_DATA_VWC_PRESENT_MASK		(0x1)
 
+/** namespace features */
+/* thin provisioning */
 #define NVME_NS_DATA_NSFEAT_THIN_PROV_SHIFT		(0)
 #define NVME_NS_DATA_NSFEAT_THIN_PROV_MASK		(0x1)
+
+/** formatted lba size */
 #define NVME_NS_DATA_FLBAS_FORMAT_SHIFT			(0)
 #define NVME_NS_DATA_FLBAS_FORMAT_MASK			(0xF)
 #define NVME_NS_DATA_FLBAS_EXTENDED_SHIFT		(4)
 #define NVME_NS_DATA_FLBAS_EXTENDED_MASK		(0x1)
+
+/** metadata capabilities */
+/* metadata can be transferred as part of data prp list */
 #define NVME_NS_DATA_MC_EXTENDED_SHIFT			(0)
 #define NVME_NS_DATA_MC_EXTENDED_MASK			(0x1)
+/* metadata can be transferred with separate metadata pointer */
 #define NVME_NS_DATA_MC_POINTER_SHIFT			(1)
 #define NVME_NS_DATA_MC_POINTER_MASK			(0x1)
+
+/** end-to-end data protection capabilities */
+/* protection information type 1 */
 #define NVME_NS_DATA_DPC_PIT1_SHIFT			(0)
 #define NVME_NS_DATA_DPC_PIT1_MASK			(0x1)
+/* protection information type 2 */
 #define NVME_NS_DATA_DPC_PIT2_SHIFT			(1)
 #define NVME_NS_DATA_DPC_PIT2_MASK			(0x1)
+/* protection information type 3 */
 #define NVME_NS_DATA_DPC_PIT3_SHIFT			(2)
 #define NVME_NS_DATA_DPC_PIT3_MASK			(0x1)
+/* first eight bytes of metadata */
 #define NVME_NS_DATA_DPC_MD_START_SHIFT			(3)
 #define NVME_NS_DATA_DPC_MD_START_MASK			(0x1)
+/* last eight bytes of metadata */
 #define NVME_NS_DATA_DPC_MD_END_SHIFT			(4)
 #define NVME_NS_DATA_DPC_MD_END_MASK			(0x1)
+
+/** end-to-end data protection type settings */
+/* protection information type */
 #define NVME_NS_DATA_DPS_PIT_SHIFT			(0)
 #define NVME_NS_DATA_DPS_PIT_MASK			(0x7)
+/* 1 == protection info transferred at start of metadata */
+/* 0 == protection info transferred at end of metadata */
 #define NVME_NS_DATA_DPS_MD_START_SHIFT			(3)
 #define NVME_NS_DATA_DPS_MD_START_MASK			(0x1)
+
+/** lba format support */
+/* metadata size */
 #define NVME_NS_DATA_LBAF_MS_SHIFT			(0)
 #define NVME_NS_DATA_LBAF_MS_MASK			(0xFFFF)
+/* lba data size */
 #define NVME_NS_DATA_LBAF_LBADS_SHIFT			(16)
 #define NVME_NS_DATA_LBAF_LBADS_MASK			(0xFF)
+/* relative performance */
 #define NVME_NS_DATA_LBAF_RP_SHIFT			(24)
 #define NVME_NS_DATA_LBAF_RP_MASK			(0x3)
 
-#define NVME_CRIT_WARN_ST_AVAILABLE_SPARE_SHIFT		(0)
-#define NVME_CRIT_WARN_ST_AVAILABLE_SPARE_MASK		(0x1)
-#define NVME_CRIT_WARN_ST_TEMPERATURE_SHIFT		(1)
-#define NVME_CRIT_WARN_ST_TEMPERATURE_MASK		(0x1)
-#define NVME_CRIT_WARN_ST_DEVICE_RELIABILITY_SHIFT	(2)
-#define NVME_CRIT_WARN_ST_DEVICE_RELIABILITY_MASK	(0x1)
-#define NVME_CRIT_WARN_ST_READ_ONLY_SHIFT		(3)
-#define NVME_CRIT_WARN_ST_READ_ONLY_MASK		(0x1)
-#define NVME_CRIT_WARN_ST_VOLATILE_MEMORY_BACKUP_SHIFT	(4)
-#define NVME_CRIT_WARN_ST_VOLATILE_MEMORY_BACKUP_MASK	(0x1)
+enum nvme_critical_warning_state {
+	NVME_CRIT_WARN_ST_AVAILABLE_SPARE		= 0x1,
+	NVME_CRIT_WARN_ST_TEMPERATURE			= 0x2,
+	NVME_CRIT_WARN_ST_DEVICE_RELIABILITY		= 0x4,
+	NVME_CRIT_WARN_ST_READ_ONLY			= 0x8,
+	NVME_CRIT_WARN_ST_VOLATILE_MEMORY_BACKUP	= 0x10,
+};
+#define NVME_CRIT_WARN_ST_RESERVED_MASK			(0xE0)
 
+/* slot for current FW */
 #define NVME_FIRMWARE_PAGE_AFI_SLOT_SHIFT		(0)
 #define NVME_FIRMWARE_PAGE_AFI_SLOT_MASK		(0x7)
 
@@ -567,21 +617,7 @@ struct nvme_controller_data {
 	/* bytes 256-511: admin command set attributes */
 
 	/** optional admin command support */
-	struct {
-		/* supports security send/receive commands */
-		uint16_t	security  : 1;
-
-		/* supports format nvm command */
-		uint16_t	format    : 1;
-
-		/* supports firmware activate/download commands */
-		uint16_t	firmware  : 1;
-
-		/* supports namespace management commands */
-		uint16_t	nsmgmt	  : 1;
-
-		uint16_t	oacs_rsvd : 12;
-	} __packed oacs;
+	uint16_t		oacs;
 
 	/** abort command limit */
 	uint8_t			acl;
@@ -590,23 +626,10 @@ struct nvme_controller_data {
 	uint8_t			aerl;
 
 	/** firmware updates */
-	struct {
-		/* first slot is read-only */
-		uint8_t		slot1_ro  : 1;
-
-		/* number of firmware slots */
-		uint8_t		num_slots : 3;
-
-		uint8_t		frmw_rsvd : 4;
-	} __packed frmw;
+	uint8_t			frmw;
 
 	/** log page attributes */
-	struct {
-		/* per namespace smart/health log page */
-		uint8_t		ns_smart : 1;
-
-		uint8_t		lpa_rsvd : 7;
-	} __packed lpa;
+	uint8_t			lpa;
 
 	/** error log page entries */
 	uint8_t			elpe;
@@ -615,20 +638,10 @@ struct nvme_controller_data {
 	uint8_t			npss;
 
 	/** admin vendor specific command configuration */
-	struct {
-		/* admin vendor specific commands use spec format */
-		uint8_t		spec_format : 1;
-
-		uint8_t		avscc_rsvd  : 7;
-	} __packed avscc;
+	uint8_t			avscc;
 
 	/** Autonomous Power State Transition Attributes */
-	struct {
-		/* Autonmous Power State Transitions supported */
-		uint8_t		apst_supp : 1;
-
-		uint8_t		apsta_rsvd : 7;
-	} __packed apsta;
+	uint8_t			apsta;
 
 	/** Warning Composite Temperature Threshold */
 	uint16_t		wctemp;
@@ -679,20 +692,14 @@ struct nvme_controller_data {
 	/** Sanitize Capabilities */
 	uint32_t		sanicap; /* Really a bitfield */
 
-	uint8_t reserved3[180];
+	uint8_t			reserved3[180];
 	/* bytes 512-703: nvm command set attributes */
 
 	/** submission queue entry size */
-	struct {
-		uint8_t		min : 4;
-		uint8_t		max : 4;
-	} __packed sqes;
+	uint8_t			sqes;
 
 	/** completion queue entry size */
-	struct {
-		uint8_t		min : 4;
-		uint8_t		max : 4;
-	} __packed cqes;
+	uint8_t			cqes;
 
 	/** Maximum Outstanding Commands */
 	uint16_t		maxcmd;
@@ -701,12 +708,7 @@ struct nvme_controller_data {
 	uint32_t		nn;
 
 	/** optional nvm command support */
-	struct {
-		uint16_t	compare : 1;
-		uint16_t	write_unc : 1;
-		uint16_t	dsm: 1;
-		uint16_t	reserved: 13;
-	} __packed oncs;
+	uint16_t		oncs;
 
 	/** fused operation support */
 	uint16_t		fuses;
@@ -715,10 +717,7 @@ struct nvme_controller_data {
 	uint8_t			fna;
 
 	/** volatile write cache */
-	struct {
-		uint8_t		present : 1;
-		uint8_t		reserved : 7;
-	} __packed vwc;
+	uint8_t			vwc;
 
 	/* TODO: flesh out remaining nvm command set attributes */
 	uint8_t			reserved5[178];
@@ -747,60 +746,26 @@ struct nvme_namespace_data {
 	uint64_t		nuse;
 
 	/** namespace features */
-	struct {
-		/** thin provisioning */
-		uint8_t		thin_prov : 1;
-		uint8_t		reserved1 : 7;
-	} __packed nsfeat;
+	uint8_t			nsfeat;
 
 	/** number of lba formats */
 	uint8_t			nlbaf;
 
+	/** formatted lba size */
 	uint8_t			flbas;
 
 	/** metadata capabilities */
-	struct {
-		/* metadata can be transferred as part of data prp list */
-		uint8_t		extended  : 1;
-
-		/* metadata can be transferred with separate metadata pointer */
-		uint8_t		pointer   : 1;
-
-		uint8_t		reserved3 : 6;
-	} __packed mc;
+	uint8_t			mc;
 
 	/** end-to-end data protection capabilities */
-	struct {
-		/* protection information type 1 */
-		uint8_t		pit1     : 1;
-
-		/* protection information type 2 */
-		uint8_t		pit2     : 1;
-
-		/* protection information type 3 */
-		uint8_t		pit3     : 1;
-
-		/* first eight bytes of metadata */
-		uint8_t		md_start : 1;
-
-		/* last eight bytes of metadata */
-		uint8_t		md_end   : 1;
-	} __packed dpc;
+	uint8_t			dpc;
 
 	/** end-to-end data protection type settings */
-	struct {
-		/* protection information type */
-		uint8_t		pit       : 3;
-
-		/* 1 == protection info transferred at start of metadata */
-		/* 0 == protection info transferred at end of metadata */
-		uint8_t		md_start  : 1;
-
-		uint8_t		reserved4 : 4;
-	} __packed dps;
+	uint8_t			dps;
 
 	uint8_t			reserved5[98];
 
+	/** lba format support */
 	uint32_t		lbaf[16];
 
 	uint8_t			reserved6[192];
@@ -854,26 +819,9 @@ struct nvme_error_information_entry {
 
 _Static_assert(sizeof(struct nvme_error_information_entry) == 64, "bad size for nvme_error_information_entry");
 
-union nvme_critical_warning_state {
-
-	uint8_t		raw;
-
-	struct {
-		uint8_t	available_spare		: 1;
-		uint8_t	temperature		: 1;
-		uint8_t	device_reliability	: 1;
-		uint8_t	read_only		: 1;
-		uint8_t	volatile_memory_backup	: 1;
-		uint8_t	reserved		: 3;
-	} __packed bits;
-} __packed;
-
-_Static_assert(sizeof(union nvme_critical_warning_state) == 1, "bad size for nvme_critical_warning_state");
-
 struct nvme_health_information_page {
 
-	union nvme_critical_warning_state	critical_warning;
-
+	uint8_t			critical_warning;
 	uint16_t		temperature;
 	uint8_t			available_spare;
 	uint8_t			available_spare_threshold;
@@ -910,11 +858,7 @@ _Static_assert(sizeof(struct nvme_health_information_page) == 512, "bad size for
 
 struct nvme_firmware_page {
 
-	struct {
-		uint8_t	slot		: 3; /* slot for current FW */
-		uint8_t	reserved	: 5;
-	} __packed afi;
-
+	uint8_t			afi;
 	uint8_t			reserved[7];
 	uint64_t		revision[7]; /* revisions for 7 slots */
 	uint8_t			reserved2[448];

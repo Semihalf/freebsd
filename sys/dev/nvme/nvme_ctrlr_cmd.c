@@ -214,12 +214,11 @@ nvme_ctrlr_cmd_set_num_queues(struct nvme_controller *ctrlr,
 
 void
 nvme_ctrlr_cmd_set_async_event_config(struct nvme_controller *ctrlr,
-    union nvme_critical_warning_state state, nvme_cb_fn_t cb_fn,
-    void *cb_arg)
+    uint8_t state, nvme_cb_fn_t cb_fn, void *cb_arg)
 {
 	uint32_t cdw11;
 
-	cdw11 = state.raw;
+	cdw11 = state;
 	nvme_ctrlr_cmd_set_feature(ctrlr,
 	    NVME_FEAT_ASYNC_EVENT_CONFIGURATION, cdw11, NULL, 0, cb_fn,
 	    cb_arg);
