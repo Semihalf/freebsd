@@ -411,9 +411,12 @@ xicp_eoi(device_t dev, u_int irq)
 {
 	uint64_t xirr;
 
-	if (irq == MAX_XICP_IRQS) /* Remap IPI interrupt to internal value */
+	if (irq == MAX_XICP_IRQS) { /* Remap IPI interrupt to internal value */
 		irq = XICP_IPI;
-	xirr = irq | (XICP_PRIORITY << 24);
+		xirr = irq | ((XICP_PRIORITY-1) << 24);
+	} else {
+		xirr = irq | (XICP_PRIORITY << 24);
+	}
 
 #ifdef POWERNV
 	if (mfmsr() & PSL_HV)
@@ -431,7 +434,7 @@ xicp_ipi(device_t dev, u_int cpu)
 	cpu = pcpu_find(cpu)->pc_hwref;
 
 	if (mfmsr() & PSL_HV)
-		bus_write_1(xicp_mem_for_cpu(cpu), 12, XICP_PRIORITY);
+		bus_write_1(xicp_mem_for_cpu(cpu), 12, XICP_PRIORITY-1);
 	else
 #endif
 		phyp_hcall(H_IPI, (uint64_t)cpu, XICP_PRIORITY);
