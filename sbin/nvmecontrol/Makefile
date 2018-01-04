@@ -7,5 +7,6 @@ SRCS=	nvmecontrol.c devlist.c firmware.c identify.c logpage.c	\
 MAN=	nvmecontrol.8
 
 .PATH:	${SRCTOP}/sys/dev/nvme
+CFLAGS+=-include ${SRCTOP}/sys/dev/nvme/nvme.h
 
 .include <bsd.prog.mk>
