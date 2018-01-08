@@ -81,7 +81,7 @@ perftest(int argc, char *argv[])
 {
 	struct nvme_io_test		io_test;
 	int				fd;
-	char				ch;
+	signed char			ch;
 	char				*p;
 	u_long				ioctl_cmd = NVME_IO_TEST;
 	bool				nflag, oflag, sflag, tflag;
