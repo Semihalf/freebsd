@@ -461,7 +461,10 @@ xicp_mask(device_t dev, u_int irq)
 			}
 		}
 		KASSERT(i < sc->nintvecs, ("Masking unconfigured interrupt"));
-		opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2, 0xff);
+		status = opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2, 0xff);
+		if (status != 0)
+			panic("xicp mask irq %d -> cpu %d failed: %d", irq,
+			    sc->intvecs[i].cpu, status);
 #endif
 	}
 }
@@ -487,8 +490,11 @@ xicp_unmask(device_t dev, u_int irq)
 			}
 		}
 		KASSERT(i < sc->nintvecs, ("Unmasking unconfigured interrupt"));
-		opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2,
+		status = opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2,
 		    XICP_PRIORITY);
+		if (status != 0)
+			panic("xicp unmask irq %d -> cpu %d failed: %d", irq,
+			    sc->intvecs[i].cpu, status);
 #endif
 	}
 }

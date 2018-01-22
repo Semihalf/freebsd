@@ -587,9 +587,12 @@ opalpic_pic_enable(device_t dev, u_int irq, u_int vector)
 static void opalpic_pic_eoi(device_t dev, u_int irq)
 {
 	struct opalpci_softc *sc;
+	cell_t status;
 
 	sc = device_get_softc(dev);
-	opal_call(OPAL_PCI_MSI_EOI, sc->phb_id, irq);
+	status = opal_call(OPAL_PCI_MSI_EOI, sc->phb_id, irq);
+	if (status != 0)
+		panic("OPAL_PIC_MSI_EOI irq %d failed: %d", irq, status);
 
 	PIC_EOI(root_pic, irq);
 }
