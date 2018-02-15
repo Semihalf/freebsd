@@ -71,6 +71,8 @@ prefetch(void *x)
 {
 	__asm volatile("prefetcht0 %0" :: "m" (*(unsigned long *)x));
 }
+#elif defined(__powerpc64__)
+#define prefetch(x) __builtin_prefetch(x)
 #else
 #define prefetch(x)
 #endif
