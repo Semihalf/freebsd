@@ -49,7 +49,7 @@ __FBSDID("$FreeBSD$");
 #else
 #include <string.h>
 #endif
-
+extern void* memcpy_power7(void *dst0, const void *src0, size_t length);
 /*
  * sizeof(word) MUST BE A POWER OF TWO
  * SO THAT wmask BELOW IS ALL ONES
@@ -64,6 +64,7 @@ typedef	long	word;		/* "word" used for optimal copy speed */
  * This is the routine that actually implements
  * (the portable versions of) bcopy, memcpy, and memmove.
  */
+#if 0
 void *
 memcpy(void *dst0, const void *src0, size_t length)
 {
@@ -142,6 +143,50 @@ done:
 	return (dst0);
 }
 
+#else
+#define memcpy memcpy_power7
+#if 0
+void * memcpy(void *dst, const void *src, size_t n)
+{
+  size_t i;
+
+
+  // Number of 64-bit elements copied per loop.
+  i = n / 4;
+
+  __asm __volatile (
+       "        cmpldi %2, 0    \n\t"
+       "        beq   2f        \n\t"
+       "        mtctr %2        \n\t"
+       /********* Main Code ********/
+       "1:      ld  3, 0(%1)    \n\t"
+       "        ld  4, 8(%1)    \n\t"
+       "        ld  5,16(%1)    \n\t"
+       "        ld  6,24(%1)    \n\t"
+       "        std 3, 0(%0)    \n\t"
+       "        std 4, 8(%0)    \n\t"
+       "        std 5,16(%0)    \n\t"
+       "        std 6,24(%0)    \n\t"
+       /****************************/
+       "        addi %1, %1, 32 \n\t"
+       "        addi %0, %0, 32 \n\t"
+       "        bdnz+ 1b        \n\t"
+       "2:      nop             \n\t"
+        :
+        : "r"(dst), "r"(src), "r"(i)
+        : "memory", "r3", "r4", "r5", "r6"
+       );
+
+int j;
+char *dstp = dst;
+const char *srcp = src;
+  for (j = i*4; j < n; ++j)
+    dstp[j] = srcp[j];
+    return dst;
+}
+
+#endif
+#endif
 void
 bcopy(const void *src0, void *dst0, size_t length)
 {

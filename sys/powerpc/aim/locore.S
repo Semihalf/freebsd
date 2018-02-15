@@ -11,5 +11,5 @@
  * created.
  */
 ENTRY(get_spr)
-	mfspr	%r3, 0
+	mfspr	r3, 0
 	blr

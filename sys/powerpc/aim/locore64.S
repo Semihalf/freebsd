@@ -182,4 +182,7 @@ ASENTRY_NOPROF(__start)
 	/* Unreachable */
 	b	.
 
+
+
 #include <powerpc/aim/trap_subr64.S>
+#include <powerpc/aim/memcpyp8.S>
