@@ -99,14 +99,7 @@ static device_method_t  xics_methods[] = {
 	DEVMETHOD_END
 };
 
-struct xicp_irq_info {
-	int irq;
-	int vector;
-	int cpu;
-};
-
 struct xicp_softc {
-	int lock;
 	struct mtx sc_mtx;
 	struct resource *mem[MAXCPU];
 
@@ -118,7 +111,11 @@ struct xicp_softc {
 	int ibm_set_xive;
 
 	/* XXX: inefficient -- hash table? tree? */
-	struct xicp_irq_info intvecs[256];
+	struct {
+		int irq;
+		int vector;
+		int cpu;
+	} intvecs[256];
 	int nintvecs;
 };
 
@@ -159,52 +156,6 @@ xicp_mem_for_cpu(int cpu)
 	return (NULL);
 }
 #endif
-
-static void
-xicp_rlock(struct xicp_softc *sc)
-{
-	int lock;
-
-	while (1) {
-		lock = sc->lock;
-		if (lock >= 0) {
-			if (atomic_cmpset_int(&sc->lock, lock, lock+1))
-				break;
-		}
-	}
-
-}
-
-static void
-xicp_runlock(struct xicp_softc *sc)
-{
-
-	atomic_subtract_int(&sc->lock, 1);
-}
-
-static void
-xicp_wlock(struct xicp_softc *sc)
-{
-
-	while (!atomic_cmpset_int(&sc->lock, 0, -1))
-		;
-}
-
-static void
-xicp_wunlock(struct xicp_softc *sc)
-{
-
-	sc->lock = 0;
-}
-
-static int
-xicp_compare(const void *a, const void *b)
-{
-	int irq_a = *(const int *)a;
-	int irq_b = *(const int *)b;
-
-	return ((irq_a > irq_b) - (irq_a < irq_b));
-}
 
 static int
 xicp_probe(device_t dev)
@@ -281,7 +232,6 @@ xicp_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, "XICP", NULL, MTX_DEF);
 	sc->nintvecs = 0;
-	sc->lock = 0;
 
 	powerpc_register_pic(dev, OF_xref_from_node(phandle), MAX_XICP_IRQS,
 	    1 /* Number of IPIs */, FALSE);
@@ -310,7 +260,6 @@ static void
 xicp_bind(device_t dev, u_int irq, cpuset_t cpumask)
 {
 	struct xicp_softc *sc = device_get_softc(dev);
-	struct xicp_irq_info *r;
 	cell_t status, cpu;
 	int ncpus, i, error;
 
@@ -338,14 +287,14 @@ xicp_bind(device_t dev, u_int irq, cpuset_t cpumask)
 	
 	cpu = pcpu_find(cpu)->pc_hwref;
 
-	xicp_wlock(sc);
-
-	r = (struct xicp_irq_info *)bsearch((void *)&irq, sc->intvecs,
-	    sc->nintvecs, sizeof(sc->intvecs[0]), xicp_compare);
-
-	KASSERT(r != NULL, ("Binding non-configured interrupt"));
-	r->cpu = cpu;
-	xicp_wunlock(sc);
+	/* XXX: super inefficient */
+	for (i = 0; i < sc->nintvecs; i++) {
+		if (sc->intvecs[i].irq == irq) {
+			sc->intvecs[i].cpu = cpu;
+			break;
+		}
+	}
+	KASSERT(i < sc->nintvecs, ("Binding non-configured interrupt"));
 
 	if (rtas_exists())
 		error = rtas_call_method(sc->ibm_set_xive, 3, 1, irq, cpu,
@@ -363,10 +312,9 @@ static void
 xicp_dispatch(device_t dev, struct trapframe *tf)
 {
 	struct xicp_softc *sc;
-	struct xicp_irq_info *r;
 	struct resource *regs = NULL;
 	uint64_t xirr, junk;
-	int vector, xirr_i;
+	int i;
 
 #ifdef POWERNV
 	if (mfmsr() & PSL_HV) {
@@ -405,17 +353,14 @@ xicp_dispatch(device_t dev, struct trapframe *tf)
 				    0xff);
 		}
 
-		xicp_rlock(sc);
+		/* XXX: super inefficient */
+		for (i = 0; i < sc->nintvecs; i++) {
+			if (sc->intvecs[i].irq == xirr)
+				break;
+		}
 
-		xirr_i = (int)xirr;
-		r = (struct xicp_irq_info *)bsearch((void *)&xirr_i, sc->intvecs,
-		    sc->nintvecs, sizeof(sc->intvecs[0]), xicp_compare);
-
-		KASSERT(r != NULL, ("Unmapped XIRR"));
-		vector = r->vector;
-		xicp_runlock(sc);
-
-		powerpc_dispatch_intr(vector, tf);
+		KASSERT(i < sc->nintvecs, ("Unmapped XIRR"));
+		powerpc_dispatch_intr(sc->intvecs[i].vector, tf);
 	}
 }
 
@@ -433,16 +378,13 @@ xicp_enable(device_t dev, u_int irq, u_int vector)
 	/* Bind to this CPU to start: distrib. ID is last entry in gserver# */
 	cpu = PCPU_GET(hwref);
 
-	xicp_wlock(sc);
-
+	mtx_lock(&sc->sc_mtx);
 	sc->intvecs[sc->nintvecs].irq = irq;
 	sc->intvecs[sc->nintvecs].vector = vector;
 	sc->intvecs[sc->nintvecs].cpu = cpu;
+	mb();
 	sc->nintvecs++;
-	qsort((void *)sc->intvecs, sc->nintvecs, sizeof(sc->intvecs[0]),
-	    xicp_compare);
-
-	xicp_wunlock(sc);
+	mtx_unlock(&sc->sc_mtx);
 
 	/* IPIs are also enabled */
 	if (irq == MAX_XICP_IRQS)
@@ -511,18 +453,18 @@ xicp_mask(device_t dev, u_int irq)
 		rtas_call_method(sc->ibm_int_off, 1, 1, irq, &status);
 #ifdef POWERNV
 	} else {
-		struct xicp_irq_info *r;
+		int i;
 
-		xicp_rlock(sc);
-		r = (struct xicp_irq_info *)bsearch((void *)&irq, sc->intvecs,
-		    sc->nintvecs, sizeof(sc->intvecs[0]), xicp_compare);
-
-		KASSERT(r != NULL, ("Masking unconfigured interrupt"));
-		status = opal_call(OPAL_SET_XIVE, irq, r->cpu << 2, 0xff);
+		for (i = 0; i < sc->nintvecs; i++) {
+			if (sc->intvecs[i].irq == irq) {
+				break;
+			}
+		}
+		KASSERT(i < sc->nintvecs, ("Masking unconfigured interrupt"));
+		status = opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2, 0xff);
 		if (status != 0)
 			panic("xicp mask irq %d -> cpu %d failed: %d", irq,
-			    r->cpu, status);
-		xicp_runlock(sc);
+			    sc->intvecs[i].cpu, status);
 #endif
 	}
 }
@@ -540,19 +482,19 @@ xicp_unmask(device_t dev, u_int irq)
 		rtas_call_method(sc->ibm_int_on, 1, 1, irq, &status);
 #ifdef POWERNV
 	} else {
-		struct xicp_irq_info *r;
+		int i;
 
-		xicp_rlock(sc);
-		r = (struct xicp_irq_info *)bsearch((void *)&irq, sc->intvecs,
-		    sc->nintvecs, sizeof(sc->intvecs[0]), xicp_compare);
-
-		KASSERT(r != NULL, ("Unmasking unconfigured interrupt"));
-		status = opal_call(OPAL_SET_XIVE, irq, r->cpu << 2,
+		for (i = 0; i < sc->nintvecs; i++) {
+			if (sc->intvecs[i].irq == irq) {
+				break;
+			}
+		}
+		KASSERT(i < sc->nintvecs, ("Unmasking unconfigured interrupt"));
+		status = opal_call(OPAL_SET_XIVE, irq, sc->intvecs[i].cpu << 2,
 		    XICP_PRIORITY);
 		if (status != 0)
 			panic("xicp unmask irq %d -> cpu %d failed: %d", irq,
-			    r->cpu, status);
-		xicp_runlock(sc);
+			    sc->intvecs[i].cpu, status);
 #endif
 	}
 }
