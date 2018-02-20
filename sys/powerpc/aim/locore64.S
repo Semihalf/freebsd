@@ -160,6 +160,10 @@ ASENTRY_NOPROF(__start)
 	std	%r6,72(%r1)
 	std	%r7,80(%r1)
 
+	/* Set SPRG0 to 0 to indicate that we don't have pcpu yet */
+	li	%r3,0
+	mtsprg0	%r3
+
 	bl	1f
 	.llong _DYNAMIC-.
 1:	mflr	%r3

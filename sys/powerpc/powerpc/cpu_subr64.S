@@ -95,3 +95,190 @@ CNAME(power_save_sequence):
 	bne	2b
 	nap
 	b	.
+
+ENTRY(memcpy_vector)
+	/* Set PCB_VEC flag in case of context switch */
+	mfsprg0	%r7			/* Get the pcpu pointer */
+	cmpdi	%r7,0			/* SPRG0 is 0 if pcpu not available */
+	beq	align_address
+
+	ld	%r7,PC_CURTHREAD(%r7)
+	ld	%r7,TD_PCB(%r7)
+
+	lwz	%r8,PCB_FLAGS(%r7)
+	ori	%r8,%r8,PCB_VEC
+	stw	%r8,PCB_FLAGS(%r7)
+	sync
+
+align_address:
+	neg	%r0,%r3		/* r0 = ~r3 + 1 */
+
+	/*
+	 * Aligning address can't copy more data than we need.
+	 * Turncate aligning mask to be not higher than length
+	 */
+	li	%r7,0x1F
+1:	srdi	%r7,%r7,1
+	and	%r0,%r7,%r0
+	cmpd	%r0,%r5
+	bgt	1b
+
+align_address_16:
+	clrldi	%r0,%r0,(64-4)
+	mtxer	%r0
+
+	/*
+	 * lswx instruction loads n=XER[57:63] bytes to ceil(n/4)
+	 * registers starting from (in this case) r6
+	 * It works only in big endian mode
+	 */
+	lswx	%r6,0,%r4
+	add	%r4,%r4,%r0
+	stswx	%r6,0,%r3
+	add	%r3,%r3,%r0
+
+	sub	%r5,%r5,%r0
+	cmpdi	%r5,16
+	blt	copy_tail_15
+
+align_address_128:
+	neg	%r0,%r3		/* r0 = ~r3 + 1 */
+
+	li	%r7,0xFF
+1:	srdi	%r7,%r7,1
+	and	%r0,%r7,%r0
+	cmpd	%r0,%r5
+	bgt	1b
+
+	mtocrf	0x02,%r0	/* Copy bits 56:59 from r0 to cr6 field */
+	clrldi	%r0,%r0,(64-7)
+
+	/* Load some constants for use with lvx/stvx */
+	li	%r6,16
+	li	%r7,32
+	li	%r8,48
+
+align_address_128_vmx:
+	/* Align to 32 byte */
+	bf	59-32,1f
+	lvx	%v0,0,%r4
+	addi	%r4,%r4,16
+	stvx	%v0,0,%r3
+	addi	%r3,%r3,16
+
+	/* Align to 64 byte */
+1:	bf	58-32,2f
+	lvx	%v0,0,%r4
+	lvx	%v1,%r6,%r4
+	addi	%r4,%r4,32
+	stvx	%v0,0,%r3
+	stvx	%v1,%r6,%r3
+	addi	%r3,%r3,32
+
+	/* Align to 128 byte */
+2:	bf	57-32,3f
+	lvx	%v0,0,%r4
+	lvx	%v1,%r6,%r4
+	lvx	%v2,%r7,%r4
+	lvx	%v3,%r8,%r4
+	addi	%r4,%r4,64
+	stvx	%v0,0,%r3
+	stvx	%v1,%r6,%r3
+	stvx	%v2,%r7,%r3
+	stvx	%v3,%r8,%r3
+	addi	%r3,%r3,64
+
+	/* Subtract number of copied bytes */
+3:	sub	%r5,%r5,%r0
+
+copy_loop:
+	/* Check if we have to copy at least 128 bytes */
+	cmpdi	%r5,128
+	blt	copy_tail
+
+	li	%r9,64
+	li	%r10,80
+	li	%r11,96
+	li	%r12,112
+
+	/* Copy 128 bytes at once */
+	srdi	%r0,%r5,7
+	mtctr	%r0
+1:	lvx	%v0,0,%r4
+	lvx	%v1,%r6,%r4
+	lvx	%v2,%r7,%r4
+	lvx	%v3,%r8,%r4
+	lvx	%v4,%r9,%r4
+	lvx	%v5,%r10,%r4
+	lvx	%v6,%r11,%r4
+	lvx	%v7,%r12,%r4
+	addi	%r4,%r4,128
+	stvx	%v0,0,%r3
+	stvx	%v1,%r6,%r3
+	stvx	%v2,%r7,%r3
+	stvx	%v3,%r8,%r3
+	stvx	%v4,%r9,%r3
+	stvx	%v5,%r10,%r3
+	stvx	%v6,%r11,%r3
+	stvx	%v7,%r12,%r3
+	addi	%r3,%r3,128
+	bdnz+	1b
+
+copy_tail:
+	/* At most 127 bytes left */
+	clrldi	%r5,%r5,(64-7)	/* Calculate remainder */
+	mtocrf	0x02,%r5
+
+	bf	57-32,1f
+	lvx	%v0,0,%r4
+	lvx	%v1,%r6,%r4
+	lvx	%v2,%r7,%r4
+	lvx	%v3,%r8,%r4
+	addi	%r4,%r4,64
+	stvx	%v0,0,%r3
+	stvx	%v1,%r6,%r3
+	stvx	%v2,%r7,%r3
+	stvx	%v3,%r8,%r3
+	addi	%r3,%r3,64
+
+	/* At most 63 bytes left */
+1:	bf	58-32,2f
+	lvx	%v0,0,%r4
+	lvx	%v1,%r6,%r4
+	addi	%r4,%r4,32
+	stvx	%v0,0,%r3
+	stvx	%v1,%r6,%r3
+	addi	%r3,%r3,32
+
+	/* At most 31 bytes left */
+2:	bf	59-32,copy_tail_15
+	lvx	%v0,0,%r4
+	addi	%r4,%r4,16
+	stvx	%v0,0,%r3
+	addi	%r3,%r3,16
+
+copy_tail_15:
+	/* At most 15 bytes left */
+	clrldi	%r5,%r5,(64-4)	/* Calculate remainder */
+	mtxer	%r5
+
+	lswx	%r6,0,%r4
+	add	%r4,%r4,%r5
+	stswx	%r6,0,%r3
+	add	%r3,%r3,%r5
+
+copy_cleanup:
+	/* Now we don't need vectors to be saved */
+	mfsprg0	%r7			/* Get the pcpu pointer */
+	cmpdi	%r7,0			/* SPRG0 is 0 if pcpu not available */
+	beq	1f
+
+	ld	%r7,PC_CURTHREAD(%r7)
+	ld	%r7,TD_PCB(%r7)
+
+	lwz	%r8,PCB_FLAGS(%r7)
+	andi.	%r8,%r8,(~PCB_VEC)@l
+	stw	%r8,PCB_FLAGS(%r7)
+	sync
+
+1:	blr

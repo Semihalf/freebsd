@@ -59,6 +59,8 @@ typedef	long	word;		/* "word" used for optimal copy speed */
 #define	wsize	sizeof(word)
 #define wmask	(wsize - 1)
 
+extern void *memcpy_vector(void *, const void *, size_t);
+
 /*
  * Copy a block of memory, handling overlap.
  * This is the routine that actually implements
@@ -70,9 +72,23 @@ memcpy(void *dst0, const void *src0, size_t length)
 	char		*dst;
 	const char	*src;
 	size_t		t;
+#ifdef	POWERNV
+	register_t msr;
+#endif
 
 	dst = dst0;
 	src = src0;
+
+#ifdef POWERNV
+	if (((long)dst & 0xF) != ((long)src & 0xF) &&
+	    cpu_features & PPC_FEATURE_HAS_ALTIVEC) {
+		msr = mfmsr();
+		mtmsr(msr | PSL_VEC);
+		memcpy_vector(dst0, src0, length);
+		mtmsr(msr);
+		return (dst0);
+	}
+#endif
 
 	if (length == 0 || dst == src) {	/* nothing to do */
 		goto done;
